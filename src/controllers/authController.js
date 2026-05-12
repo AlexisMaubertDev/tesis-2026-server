@@ -18,6 +18,13 @@ export const login = async (req, res) => {
       });
     }
 
+    if (user.bloqueado) {
+      return res.status(403).json({
+        success: false,
+        message: "Tu cuenta ha sido bloqueada. Por favor, contactá a sistemas.",
+      });
+    }
+
     const valid = await bcrypt.compare(password, user.password);
 
     if (!valid) {
@@ -46,6 +53,8 @@ export const login = async (req, res) => {
       expiresIn: "7d",
     });
 
+    user.intentos_restantes = 3;
+    await user.save();
     res.status(200).json({
       success: true,
       data: {

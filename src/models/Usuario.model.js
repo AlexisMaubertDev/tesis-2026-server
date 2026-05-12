@@ -71,6 +71,18 @@ const Usuario = sequelize.define(
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
+    bloqueado: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    id_sucursal: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: "sucursales",
+        key: "id",
+      },
+    },
   },
   {
     tableName: "usuarios",

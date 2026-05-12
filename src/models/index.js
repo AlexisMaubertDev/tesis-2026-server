@@ -1,5 +1,6 @@
 import Usuario from "./Usuario.model.js";
 import Vehiculo from "./Vehiculo.model.js";
+import Sucursal from "./Sucursal.model.js";
 
 //Playero que ingresa el vehiculo
 Usuario.hasMany(Vehiculo, {
