@@ -2,20 +2,8 @@ import Usuario from "./Usuario.model.js";
 import Vehiculo from "./Vehiculo.model.js";
 import Sucursal from "./Sucursal.model.js";
 
-//Playero que ingresa el vehiculo
-Usuario.hasMany(Vehiculo, {
-  foreignKey: "playero_ingreso_id",
-});
-Vehiculo.belongsTo(Usuario, {
-  foreignKey: "playero_ingreso_id",
-});
+//Usuario pertenece a una sucursal
+Usuario.belongsTo(Sucursal, { foreignKey: "id_sucursal" });
+Sucursal.hasMany(Usuario, { foreignKey: "id_sucursal" });
 
-//Playero que egresa el vehiculo
-Usuario.hasMany(Vehiculo, {
-  foreignKey: "playero_egreso_id",
-});
-Vehiculo.belongsTo(Usuario, {
-  foreignKey: "playero_egreso_id",
-});
-
-export { Usuario, Vehiculo };
+export { Usuario, Vehiculo, Sucursal };
