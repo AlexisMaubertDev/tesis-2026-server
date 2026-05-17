@@ -1,5 +1,6 @@
 import { Usuario } from "../models/index.js";
 import Sucursal from "../models/Sucursal.model.js";
+import bcrypt from "bcrypt";
 
 export const obtenerUsuarios = async (req, res) => {
   try {
@@ -21,6 +22,48 @@ export const obtenerUsuarios = async (req, res) => {
       success: true,
       data: usuarios,
       message: "Usuarios obtenidos exitosamente",
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const crearUsuario = async (req, res) => {
+  try {
+    const {
+      nombre,
+      apellido,
+      legajo,
+      dni,
+      numero_turno,
+      trabaja_domingo,
+      email,
+      rol,
+      password,
+      Sucursal,
+    } = req.body;
+
+    //encripta la contraseña con bcrypt
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const usuario = await Usuario.create({
+      nombre,
+      apellido,
+      legajo,
+      numero_turno,
+      dni,
+      trabaja_domingo,
+      email,
+      rol,
+      password: hashedPassword,
+      id_sucursal: Sucursal.id,
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: usuario,
+      message: "Usuario creado exitosamente",
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
