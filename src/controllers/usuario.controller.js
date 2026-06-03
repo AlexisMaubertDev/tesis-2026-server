@@ -69,3 +69,26 @@ export const crearUsuario = async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+
+export const eliminarUsuario = async (req, res) => {
+  try {
+    const { legajo } = req.params;
+    const usuario = await Usuario.findOne({ where: { legajo } });
+
+    if (!usuario) {
+      return res.status(404).json({
+        success: false,
+        message: "El legajo ingresado no corresponde a ningún usuario",
+      });
+    }
+
+    await usuario.destroy();
+
+    return res.status(200).json({
+      success: true,
+      message: "Usuario eliminado exitosamente",
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
