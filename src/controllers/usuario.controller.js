@@ -24,6 +24,7 @@ export const obtenerUsuarios = async (req, res) => {
       message: "Usuarios obtenidos exitosamente",
     });
   } catch (err) {
+    console.log(err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -42,6 +43,42 @@ export const crearUsuario = async (req, res) => {
       password,
       Sucursal,
     } = req.body;
+
+    if (
+      !nombre ||
+      !apellido ||
+      !legajo ||
+      !dni ||
+      !numero_turno ||
+      !rol ||
+      !password
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Faltan campos obligatorios",
+      });
+    }
+
+    if (await Usuario.findOne({ where: { legajo } })) {
+      return res.status(400).json({
+        success: false,
+        message: "El legajo ingresado ya corresponde a otro usuario",
+      });
+    }
+
+    if (email && (await Usuario.findOne({ where: { email } }))) {
+      return res.status(400).json({
+        success: false,
+        message: "El email ingresado ya corresponde a otro usuario",
+      });
+    }
+
+    if (await Usuario.findOne({ where: { dni } })) {
+      return res.status(400).json({
+        success: false,
+        message: "El DNI ingresado ya corresponde a otro usuario",
+      });
+    }
 
     //encripta la contraseña con bcrypt
     const salt = await bcrypt.genSalt(10);
@@ -66,6 +103,7 @@ export const crearUsuario = async (req, res) => {
       message: "Usuario creado exitosamente",
     });
   } catch (err) {
+    console.log(err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -89,6 +127,7 @@ export const eliminarUsuario = async (req, res) => {
       message: "Usuario eliminado exitosamente",
     });
   } catch (err) {
+    console.log(err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
