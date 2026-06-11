@@ -50,7 +50,6 @@ Turno_Grua.hasMany(Acarreo, { foreignKey: "id_turno_grua" });
 Acarreo.belongsTo(Turno_Barrera, { foreignKey: "id_turno_barrera" });
 Turno_Barrera.hasMany(Acarreo, { foreignKey: "id_turno_barrera" });
 
-
 //cada turno tiene una sola barrera
 Turno_Barrera.belongsTo(Barrera, { foreignKey: "id_barrera" });
 Barrera.hasMany(Turno_Barrera, { foreignKey: "id_barrera" });
@@ -83,4 +82,22 @@ Turno_Grua.belongsTo(Usuario, {
   as: "supervisor",
 });
 
-export { Usuario, Vehiculo, Sucursal, Caja, Turno_Caja, Cobro };
+Grua.belongsTo(Sucursal, { foreignKey: "id_sucursal" });
+Sucursal.hasMany(Grua, { foreignKey: "id_sucursal" });
+
+Barrera.belongsTo(Sucursal, { foreignKey: "id_sucursal" });
+Sucursal.hasMany(Barrera, { foreignKey: "id_sucursal" });
+
+export {
+  Usuario,
+  Vehiculo,
+  Sucursal,
+  Caja,
+  Turno_Caja,
+  Cobro,
+  Acarreo,
+  Turno_Grua,
+  Turno_Barrera,
+  Grua,
+  Barrera,
+};
