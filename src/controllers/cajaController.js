@@ -23,25 +23,28 @@ export const obtenerCajas = async (req, res) => {
 export const crearCaja = async (req, res) => {
   try {
     const { numero_caja, referencia, referencia_pago, Sucursal } = req.body;
+    const transaction = await sequelize.transaction();
 
     const caja = await Caja.findOne({
       where: { numero_caja, id_sucursal: Sucursal.id },
+      transaction,
     });
 
     if (caja) {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: "Ya existe una caja con ese número en esta sucursal",
       });
     }
-    
+
     const cajaCreada = await Caja.create({
       id_sucursal: Sucursal.id,
       numero_caja,
       referencia,
       referencia_pago,
     });
-
+    await transaction.commit();
     return res.status(200).json({
       success: true,
       data: cajaCreada,
