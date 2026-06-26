@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { Usuario } from "../models/index.js";
 
 import dotenv from "dotenv";
+import { registrarAuditoria } from "../utils/auditoria.js";
 dotenv.config();
 
 export const login = async (req, res) => {
@@ -54,6 +55,14 @@ export const login = async (req, res) => {
 
     user.intentos_restantes = 3;
     await user.save();
+    await registrarAuditoria({
+      req,
+      usuario: user,
+      accion: "LOGIN",
+      entidad: "USUARIO",
+      idEntidad: user.id,
+      descripcion: "Inicio de sesión",
+    });
     res.status(200).json({
       success: true,
       data: {
@@ -67,5 +76,22 @@ export const login = async (req, res) => {
     res
       .status(500)
       .json({ success: false, message: "Error al iniciar sesión" });
+  }
+};
+
+export const cerrarSesion = async (req, res) => {
+  try {
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "LOGOUT",
+      entidad: "USUARIO",
+      idEntidad: req.user.id,
+      descripcion: "Cierre de sesión",
+    });
+    res.status(200).json({ success: true, message: "Sesión cerrada" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Error al cerrar sesión" });
   }
 };

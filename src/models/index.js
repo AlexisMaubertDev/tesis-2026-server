@@ -9,6 +9,7 @@ import Turno_Barrera from "./TurnoBarrera.model.js";
 import Acarreo from "./Acarreo.model.js";
 import Turno_Caja from "./TurnoCaja.model.js";
 import Cobro from "./Cobro.model.js";
+import Auditoria from "./Auditoria.model.js";
 
 //Usuario pertenece a una sucursal
 Usuario.belongsTo(Sucursal, { foreignKey: "id_sucursal" });
@@ -88,6 +89,14 @@ Sucursal.hasMany(Grua, { foreignKey: "id_sucursal" });
 Barrera.belongsTo(Sucursal, { foreignKey: "id_sucursal" });
 Sucursal.hasMany(Barrera, { foreignKey: "id_sucursal" });
 
+Usuario.hasMany(Auditoria, {
+  foreignKey: "id_usuario",
+});
+
+Auditoria.belongsTo(Usuario, {
+  foreignKey: "id_usuario",
+});
+
 export {
   Usuario,
   Vehiculo,
@@ -100,4 +109,5 @@ export {
   Turno_Barrera,
   Grua,
   Barrera,
+  Auditoria,
 };

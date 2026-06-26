@@ -23,7 +23,7 @@ export const obtenerBarreras = async (req, res) => {
 };
 
 export const crearBarrera = async (req, res) => {
-  const { ubicacion, Sucursal };
+  const { ubicacion, Sucursal } = req.body;
   try {
     const id_sucursal = Sucursal.id;
     const transaction = await sequelize.transaction();

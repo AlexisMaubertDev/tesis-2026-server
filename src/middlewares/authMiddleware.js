@@ -5,8 +5,8 @@ dotenv.config();
 
 export const authMiddleware = async (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
-
   if (!token) {
+    console.log("Token no proporcionado");
     return res
       .status(403)
       .json({ success: false, message: "Token de autenticación requerido" });
@@ -17,6 +17,7 @@ export const authMiddleware = async (req, res, next) => {
 
     req.user = await Usuario.findByPk(decoded.id);
   } catch (err) {
+    console.log("Token de autenticación inválido");
     return res
       .status(401)
       .json({ success: false, message: "Token de autenticación inválido" });
