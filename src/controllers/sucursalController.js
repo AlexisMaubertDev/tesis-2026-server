@@ -3,6 +3,7 @@ import Barrera from "../models/Barrera.model.js";
 import Grua from "../models/Grua.model.js";
 import { Caja, Sucursal, Usuario } from "../models/index.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
+import { sincronizarEntidades } from "../utils/sincronizarEntidades.js";
 
 export const obtenerSucursales = async (req, res) => {
   try {
@@ -177,6 +178,109 @@ export const crearSucursal = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Error al crear la sucursal",
+    });
+  }
+};
+export const editarSucursal = async (req, res) => {
+  const { id } = req.params;
+  const { nombre, direccion } = req.body;
+  const cajas = req.body.Cajas || [];
+  const barreras = req.body.Barreras || [];
+  const gruas = req.body.Gruas || [];
+
+  try {
+    const transaction = await sequelize.transaction();
+
+    const sucursal = await Sucursal.findByPk(id, {
+      include: [Caja, Barrera, Grua],
+      transaction,
+    });
+
+    if (!sucursal) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Sucursal no encontrada",
+      });
+    }
+
+    const sucursalAntes = sucursal.toJSON();
+
+    // =========================
+    // UPDATE SUCURSAL
+    // =========================
+    await sucursal.update({ nombre, direccion }, { transaction });
+
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "EDITAR",
+      entidad: "SUCURSAL",
+      idEntidad: sucursal.id,
+      descripcion: `Editó la sucursal ${sucursal.nombre}`,
+      datosAnteriores: sucursalAntes,
+      datosNuevos: { nombre, direccion },
+    });
+
+    // =========================
+    // CAJAS
+    // =========================
+    await sincronizarEntidades({
+      modelo: Caja,
+      actuales: sucursal.Cajas,
+      nuevos: cajas,
+      foreignKey: "id_sucursal",
+      idPadre: sucursal.id,
+      entidad: "CAJA",
+      req,
+      usuario: req.user,
+      transaction,
+    });
+
+    // =========================
+    // BARRERAS
+    // =========================
+    await sincronizarEntidades({
+      modelo: Barrera,
+      actuales: sucursal.Barreras,
+      nuevos: barreras,
+      foreignKey: "id_sucursal",
+      idPadre: sucursal.id,
+      entidad: "BARRERA",
+      req,
+      usuario: req.user,
+      transaction,
+    });
+
+    // =========================
+    // GRUAS
+    // =========================
+    await sincronizarEntidades({
+      modelo: Grua,
+      actuales: sucursal.Gruas,
+      nuevos: gruas,
+      foreignKey: "id_sucursal",
+      idPadre: sucursal.id,
+      entidad: "GRUA",
+      req,
+      usuario: req.user,
+      transaction,
+    });
+
+    await transaction.commit();
+
+    return res.status(200).json({
+      success: true,
+      data: sucursal,
+      message: "Sucursal actualizada exitosamente",
+    });
+  } catch (err) {
+    console.log(err);
+    await transaction.rollback();
+
+    return res.status(500).json({
+      success: false,
+      message: "Error al actualizar sucursal",
     });
   }
 };
