@@ -171,7 +171,7 @@ export const obtenerTurnos = async (req, res) => {
     if (turnos.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "No se encontraros turnos",
+        message: "No se encontraron turnos",
       });
     }
 
