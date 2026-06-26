@@ -8,7 +8,7 @@ const start = async () => {
     await sequelize.sync();
     console.log("DB conectada");
 
-    app.listen(PORT, () => {
+    app.listen(PORT, "0.0.0.0", () => {
       console.log(`Servidor corriendo en ${PORT}`);
     });
   } catch (err) {

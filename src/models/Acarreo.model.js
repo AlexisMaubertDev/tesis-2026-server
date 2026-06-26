@@ -54,6 +54,10 @@ const Acarreo = sequelize.define(
       type: DataTypes.DATE,
       allowNull: true,
     },
+    numero_acta: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
     estado: {
       type: DataTypes.ENUM(
         "ACARREADO",
@@ -85,6 +89,10 @@ const Acarreo = sequelize.define(
     },
     incidencias: {
       type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    damages: {
+      type: DataTypes.JSON,
       allowNull: true,
     },
   },

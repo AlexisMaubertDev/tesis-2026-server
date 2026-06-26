@@ -9,7 +9,6 @@ export const obtenerBarreras = async (req, res) => {
     if (barreras.length === 0) {
       return res.status(404).json({ error: "No se encontraron barreras" });
     }
-    console.log(barreras);
     return res.status(200).json({
       success: true,
       data: barreras,
