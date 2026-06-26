@@ -129,7 +129,7 @@ export const crearSucursal = async (req, res) => {
       entidad: "SUCURSAL",
       idEntidad: sucursal.id,
       descripcion: `Creó la sucursal "${sucursal.nombre}"`,
-      datosNuevos: sucursal,
+      despues: sucursal,
     });
     for (const caja of cajasCreadas) {
       await registrarAuditoria({
@@ -139,7 +139,7 @@ export const crearSucursal = async (req, res) => {
         entidad: "CAJA",
         idEntidad: caja.id,
         descripcion: `Creó la caja N°${caja.numero_caja}, con referencia "${caja.referencia}"`,
-        datosNuevos: caja,
+        despues: caja,
       });
     }
     for (const barrera of barrerasCreadas) {
@@ -150,7 +150,7 @@ export const crearSucursal = async (req, res) => {
         entidad: "BARRERA",
         idEntidad: barrera.id,
         descripcion: `Creó la barrera "${barrera.ubicacion}"`,
-        datosNuevos: barrera,
+        despues: barrera,
       });
     }
     for (const grua of gruasCreadas) {
@@ -161,7 +161,7 @@ export const crearSucursal = async (req, res) => {
         entidad: "GRUA",
         idEntidad: grua.id,
         descripcion: `Creó la grúa patente ${grua.patente}`,
-        datosNuevos: grua,
+        despues: grua,
       });
     }
 
