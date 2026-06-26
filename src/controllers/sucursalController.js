@@ -1,7 +1,8 @@
 import sequelize from "../config/db.js";
 import Barrera from "../models/Barrera.model.js";
 import Grua from "../models/Grua.model.js";
-import { Caja, Sucursal } from "../models/index.js";
+import { Caja, Sucursal, Usuario } from "../models/index.js";
+import { registrarAuditoria } from "../utils/auditoria.js";
 
 export const obtenerSucursales = async (req, res) => {
   try {
@@ -24,17 +25,46 @@ export const obtenerSucursales = async (req, res) => {
   }
 };
 
+export const obtenerSucursal = async (req, res) => {
+  const { id } = req.params;
+  if (!id) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Id de la sucursal requerido" });
+  }
+  try {
+    const sucursal = await Sucursal.findByPk(id, {
+      include: [Barrera, Caja, Grua, Usuario],
+    });
+
+    if (!sucursal) {
+      return res.status(404).json({
+        success: false,
+        message: "No se encontró la sucursal",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: sucursal,
+      message: "Sucursal obtenida exitosamente",
+    });
+  } catch (err) {
+    console.error(err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error al buscar la sucursal" });
+  }
+};
+
 export const crearSucursal = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
-    const {
-      nombre,
-      direccion,
-      cajas = [],
-      barreras = [],
-      gruas = [],
-    } = req.body;
+    const { nombre, direccion } = req.body;
+    const cajas = req.body.Cajas;
+    const barreras = req.body.Barreras;
+    const gruas = req.body.Gruas;
 
     if (
       !nombre?.trim() ||
@@ -75,22 +105,65 @@ export const crearSucursal = async (req, res) => {
       estado: "DISPONIBLE",
     }));
 
-    await Caja.bulkCreate(cajasConSucursal, {
+    const cajasCreadas = await Caja.bulkCreate(cajasConSucursal, {
       validate: true,
       transaction,
     });
 
-    await Barrera.bulkCreate(barrerasConSucursal, {
+    const barrerasCreadas = await Barrera.bulkCreate(barrerasConSucursal, {
       validate: true,
       transaction,
     });
 
-    await Grua.bulkCreate(gruasConSucursal, {
+    const gruasCreadas = await Grua.bulkCreate(gruasConSucursal, {
       validate: true,
       transaction,
     });
 
     await transaction.commit();
+
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "CREAR",
+      entidad: "SUCURSAL",
+      idEntidad: sucursal.id,
+      descripcion: `Creó la sucursal "${sucursal.nombre}"`,
+      datosNuevos: sucursal,
+    });
+    for (const caja of cajasCreadas) {
+      await registrarAuditoria({
+        req,
+        usuario: req.user,
+        accion: "CREAR",
+        entidad: "CAJA",
+        idEntidad: caja.id,
+        descripcion: `Creó la caja N°${caja.numero_caja}, con referencia "${caja.referencia}"`,
+        datosNuevos: caja,
+      });
+    }
+    for (const barrera of barrerasCreadas) {
+      await registrarAuditoria({
+        req,
+        usuario: req.user,
+        accion: "CREAR",
+        entidad: "BARRERA",
+        idEntidad: barrera.id,
+        descripcion: `Creó la barrera "${barrera.ubicacion}"`,
+        datosNuevos: barrera,
+      });
+    }
+    for (const grua of gruasCreadas) {
+      await registrarAuditoria({
+        req,
+        usuario: req.user,
+        accion: "CREAR",
+        entidad: "GRUA",
+        idEntidad: grua.id,
+        descripcion: `Creó la grúa patente ${grua.patente}`,
+        datosNuevos: grua,
+      });
+    }
 
     return res.status(201).json({
       success: true,
