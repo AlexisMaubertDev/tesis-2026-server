@@ -35,8 +35,8 @@ export const sincronizarEntidades = async ({
         entidad,
         idEntidad: actual.id,
         descripcion: `Editó ${entidad.toLowerCase()} ${actual.id}`,
-        datosAnteriores: actual.toJSON(),
-        datosNuevos: item,
+        antes: actual.toJSON(),
+        despues: item,
       });
 
       resultados.push(actual);
@@ -56,7 +56,7 @@ export const sincronizarEntidades = async ({
         entidad,
         idEntidad: created.id,
         descripcion: `Creó ${entidad.toLowerCase()}`,
-        datosNuevos: created,
+        despues: created,
       });
 
       resultados.push(created);
@@ -75,7 +75,7 @@ export const sincronizarEntidades = async ({
         entidad,
         idEntidad: actual.id,
         descripcion: `Eliminó ${entidad.toLowerCase()}`,
-        datosAnteriores: actual.toJSON(),
+        antes: actual.toJSON(),
       });
 
       await actual.destroy({ transaction });

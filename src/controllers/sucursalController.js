@@ -7,7 +7,7 @@ import { sincronizarEntidades } from "../utils/sincronizarEntidades.js";
 
 export const obtenerSucursales = async (req, res) => {
   try {
-    const sucursales = await Sucursal.findAll();
+    const sucursales = await Sucursal.findAll({ order: [["nombre", "ASC"]] });
 
     if (sucursales.length === 0) {
       return res.status(404).json({
@@ -35,7 +35,11 @@ export const obtenerSucursal = async (req, res) => {
   }
   try {
     const sucursal = await Sucursal.findByPk(id, {
-      include: [Barrera, Caja, Grua, Usuario],
+      include: [
+        { model: Barrera, order: [["ubicacion", "ASC"]] },
+        { model: Caja, order: [["numero_caja", "ASC"]] },
+        { model: Grua, order: [["numero", "DESC"]] },
+      ],
     });
 
     if (!sucursal) {

@@ -4,7 +4,10 @@ import Sucursal from "../models/Sucursal.model.js";
 
 export const obtenerGruas = async (req, res) => {
   try {
-    const gruas = await Grua.findAll({ include: { model: Sucursal } });
+    const gruas = await Grua.findAll({
+      include: { model: Sucursal },
+      order: [["numero", "ASC"]],
+    });
 
     if (gruas.length === 0) {
       return res.status(404).json({ error: "No se encontraron gruas" });
