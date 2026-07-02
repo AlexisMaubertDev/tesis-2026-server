@@ -1,6 +1,8 @@
-import { Usuario } from "../models/index.js";
+import { Caja, Turno_Caja, Usuario } from "../models/index.js";
 import Sucursal from "../models/Sucursal.model.js";
 import bcrypt from "bcrypt";
+import { crearEntidad } from "../utils/crearEntidad.js";
+import sequelize from "../config/db.js";
 
 export const obtenerUsuarios = async (req, res) => {
   try {
@@ -25,7 +27,9 @@ export const obtenerUsuarios = async (req, res) => {
     });
   } catch (err) {
     console.log(err);
-    return res.status(500).json({ success: false, message: err.message });
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
   }
 };
 
@@ -104,7 +108,9 @@ export const crearUsuario = async (req, res) => {
     });
   } catch (err) {
     console.log(err);
-    return res.status(500).json({ success: false, message: err.message });
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
   }
 };
 
@@ -128,6 +134,11 @@ export const eliminarUsuario = async (req, res) => {
     });
   } catch (err) {
     console.log(err);
-    return res.status(500).json({ success: false, message: err.message });
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
   }
 };
+
+
+

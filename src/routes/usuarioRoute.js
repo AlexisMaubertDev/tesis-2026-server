@@ -13,7 +13,6 @@ import {
 const router = express.Router();
 
 router
-  .get("/", authMiddleware, supervisorMiddleware, obtenerUsuarios)
   .post("/", authMiddleware, sistemasMiddleware, crearUsuario)
   .delete("/:legajo", authMiddleware, sistemasMiddleware, eliminarUsuario);
 

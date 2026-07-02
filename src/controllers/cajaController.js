@@ -75,67 +75,61 @@ export const editarCaja = async (req, res) => {
   try {
     const transaction = await sequelize.transaction();
 
-    const caja = await Caja.findByPk(id, { transaction });
-
-    if (!caja) {
-      await transaction.rollback();
-      return res.status(404).json({
-        success: false,
-        message: "Caja no encontrada",
-      });
-    }
-
-    if (numero_caja) {
-      const cajaDuplicada = await Caja.findOne({
-        where: {
-          numero_caja,
-          id_sucursal: Sucursal.id,
-        },
-        transaction,
-      });
-
-      if (cajaDuplicada && cajaDuplicada.id !== id) {
-        await transaction.rollback();
-        return res.status(400).json({
-          success: false,
-          message: "Ya existe una caja con ese número en esta sucursal",
-        });
-      }
-    }
-
-    const cajaAntes = caja.toJSON();
-
-    await caja.update(
-      {
+    const caja = await editarEntidad({
+      modelo: Caja,
+      id,
+      entidad: "CAJA",
+      descripcion: `Editó la caja N°${numero_caja} de la sucursal ${Sucursal.nombre}`,
+      datos: {
         numero_caja,
         referencia,
         referencia_pago,
         id_sucursal: Sucursal.id,
       },
-      { transaction },
-    );
-
-    await transaction.commit();
-
-    await registrarAuditoria({
       req,
       usuario: req.user,
-      accion: "EDITAR",
-      entidad: "CAJA",
-      idEntidad: caja.id,
-      descripcion: `Editó la caja N°${numero_caja}`,
-      datosAnteriores: cajaAntes,
-      datosNuevos: caja.toJSON(),
+      transaction,
+
+      validacion: async () => {
+        const existente = await Caja.findOne({
+          where: {
+            numero_caja,
+            id_sucursal: Sucursal.id,
+          },
+          transaction,
+        });
+
+        if (existente && existente.numero_caja !== numero_caja) {
+          throw new Error("Ya existe una caja con ese número en esta sucursal");
+        }
+      },
     });
+
+    await transaction.commit();
 
     return res.status(200).json({
       success: true,
       data: caja,
       message: "Caja actualizada exitosamente",
     });
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
     await transaction.rollback();
+
+    if (err.message.includes("Ya existe")) {
+      return res.status(400).json({
+        success: false,
+        message: err.message,
+      });
+    }
+
+    if (err.message.includes("no encontrada")) {
+      return res.status(404).json({
+        success: false,
+        message: err.message,
+      });
+    }
+
+    console.error(err);
 
     return res.status(500).json({
       success: false,
@@ -149,7 +143,11 @@ export const obtenerCajasSucursal = async (req, res) => {
     const { id } = req.params;
     const cajas = await Caja.findAll({
       where: { id_sucursal: id },
-      includes: { model: Turno_Caja, include: Usuario },
+      includes: {
+        model: Turno_Caja,
+        where: { cierre: null },
+        include: Usuario,
+      },
     });
 
     if (cajas.length === 0) {
