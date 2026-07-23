@@ -1,0 +1,296 @@
+# 03 - Modelo de Dominio
+
+# Introducción
+
+El modelo de dominio describe las entidades que intervienen en el funcionamiento de ParkControl desde el punto de vista del negocio, independientemente de su implementación técnica.
+
+Cada entidad representa un concepto propio de la operatoria de una playa de acarreo y se relaciona con otras para conformar el flujo completo del sistema.
+
+El núcleo del dominio es el **Acarreo**, ya que representa un operativo único realizado sobre un vehículo y concentra toda la información necesaria para su seguimiento hasta el egreso.
+
+---
+
+# 1. Sucursal
+
+## Descripción
+
+Representa una playa de acarreo.
+
+Cada sucursal administra sus propios recursos físicos y el personal asignado para operar diariamente.
+
+## Responsabilidades
+
+* Administrar usuarios.
+* Administrar cajas.
+* Administrar barreras.
+* Administrar grúas.
+* Centralizar la operación de una playa.
+
+## Relaciones
+
+Una sucursal posee:
+
+* Muchos usuarios.
+* Muchas cajas.
+* Muchas barreras.
+* Muchas grúas.
+
+---
+
+# 2. Usuario
+
+## Descripción
+
+Representa una persona autorizada para utilizar el sistema.
+
+Todo usuario pertenece a una única sucursal y posee un rol que determina las operaciones que puede realizar.
+
+## Roles
+
+* Sistemas
+* Supervisor
+* Cajero
+* Playero
+* Enganchador
+* Chofer (participa únicamente como recurso operativo)
+
+## Responsabilidades
+
+* Autenticarse.
+* Ejecutar operaciones según su rol.
+* Participar en turnos de trabajo.
+* Generar registros de auditoría.
+
+## Relaciones
+
+Un usuario puede participar en:
+
+* Turnos de Caja.
+* Turnos de Grúa.
+* Turnos de Barrera.
+* Registros de Auditoría.
+
+---
+
+# 3. Caja
+
+## Descripción
+
+Representa un puesto de cobro perteneciente a una sucursal.
+
+Cada caja solamente puede tener un turno activo al mismo tiempo.
+
+## Responsabilidades
+
+* Registrar cobros.
+* Asociar operaciones económicas a un turno.
+
+## Relaciones
+
+* Pertenece a una sucursal.
+* Posee múltiples turnos de caja.
+
+---
+
+# 4. Turno de Caja
+
+## Descripción
+
+Representa el período durante el cual un cajero opera una caja.
+
+Cada turno registra todas las operaciones económicas realizadas hasta su cierre.
+
+## Responsabilidades
+
+* Asociar un cajero a una caja.
+* Registrar cobros.
+* Permitir el cierre e impresión del informe diario.
+
+## Relaciones
+
+* Pertenece a una caja.
+* Pertenece a un cajero.
+* Posee múltiples cobros.
+
+---
+
+# 5. Barrera
+
+## Descripción
+
+Representa el punto físico de ingreso y egreso de vehículos dentro de una sucursal.
+
+## Responsabilidades
+
+* Controlar el ingreso y egreso de vehículos.
+* Asociar playeros a la operación diaria.
+
+## Relaciones
+
+* Pertenece a una sucursal.
+* Posee múltiples turnos de barrera.
+
+---
+
+# 6. Turno de Barrera
+
+## Descripción
+
+Representa el período operativo de una barrera.
+
+Durante un turno pueden trabajar uno o varios playeros.
+
+Un mismo playero solamente puede estar asignado a una barrera activa.
+
+## Responsabilidades
+
+* Registrar el personal asignado.
+* Gestionar el ingreso de vehículos.
+* Registrar el egreso de vehículos.
+
+## Relaciones
+
+* Pertenece a una barrera.
+* Tiene uno o varios playeros asignados.
+
+---
+
+# 7. Grúa
+
+## Descripción
+
+Representa un vehículo destinado al acarreo.
+
+Cada grúa pertenece a una sucursal y puede encontrarse disponible, en servicio o fuera de operación.
+
+## Responsabilidades
+
+* Realizar operativos de acarreo.
+* Mantener su estado operativo.
+
+## Relaciones
+
+* Pertenece a una sucursal.
+* Posee múltiples turnos de grúa.
+
+---
+
+# 8. Turno de Grúa
+
+## Descripción
+
+Representa la asignación de personal a una grúa durante una jornada.
+
+Cada turno es creado por un supervisor.
+
+## Responsabilidades
+
+* Asociar una grúa con un chofer y un enganchador.
+* Registrar los acarreos realizados durante el turno.
+
+## Relaciones
+
+* Pertenece a una grúa.
+* Tiene un chofer.
+* Tiene un enganchador.
+* Es asignado por un supervisor.
+* Posee múltiples acarreos.
+
+---
+
+# 9. Vehículo
+
+## Descripción
+
+Representa un vehículo registrado dentro del sistema.
+
+Su información identifica al vehículo independientemente de la cantidad de veces que haya sido acarreado.
+
+## Responsabilidades
+
+* Almacenar la información permanente del vehículo.
+* Mantener el historial de acarreos.
+
+## Relaciones
+
+* Posee múltiples acarreos.
+
+---
+
+# 10. Acarreo
+
+## Descripción
+
+Representa un operativo único de remoción realizado sobre un vehículo.
+
+Es la entidad central del dominio.
+
+Cada acarreo posee su propio ciclo de vida y mantiene toda la información relacionada con la operación.
+
+## Información asociada
+
+* Vehículo.
+* Turno de grúa.
+* Dirección.
+* Motivo.
+* Fecha y hora.
+* Número de acta.
+* Daños registrados.
+* Estado actual.
+
+## Responsabilidades
+
+* Registrar el operativo.
+* Gestionar el estado del vehículo.
+* Asociar el cobro correspondiente.
+* Mantener la trazabilidad completa de la operación.
+
+## Relaciones
+
+* Pertenece a un vehículo.
+* Pertenece a un turno de grúa.
+* Puede tener un único cobro.
+
+---
+
+# 11. Cobro
+
+## Descripción
+
+Representa la operación económica necesaria para liberar un vehículo.
+
+Cada cobro corresponde exclusivamente a un acarreo.
+
+## Responsabilidades
+
+* Registrar el importe abonado.
+* Registrar el medio de pago utilizado.
+* Asociar la operación a un turno de caja.
+
+## Relaciones
+
+* Pertenece a un acarreo.
+* Pertenece a un turno de caja.
+
+---
+
+# 12. Auditoría
+
+## Descripción
+
+Registra todas las acciones relevantes realizadas por los usuarios dentro del sistema.
+
+Su objetivo es garantizar la trazabilidad completa de las operaciones.
+
+## Responsabilidades
+
+* Registrar la acción realizada.
+* Registrar el usuario responsable.
+* Registrar la fecha y hora.
+* Registrar la entidad afectada.
+* Registrar los cambios efectuados.
+
+## Relaciones
+
+* Pertenece a un usuario.
+* Puede referenciar cualquier entidad del sistema.
