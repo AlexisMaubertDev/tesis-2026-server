@@ -143,10 +143,11 @@ export const obtenerCajasSucursal = async (req, res) => {
     const { id } = req.params;
     const cajas = await Caja.findAll({
       where: { id_sucursal: id },
-      includes: {
+      include: {
         model: Turno_Caja,
-        where: { cierre: null },
         include: Usuario,
+        where: { cierre: null },
+        required: false,
       },
     });
 

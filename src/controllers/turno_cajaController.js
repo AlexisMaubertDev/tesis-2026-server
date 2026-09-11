@@ -1,6 +1,7 @@
 import sequelize from "../config/db.js";
 import { Caja, Turno_Caja } from "../models/index.js";
 import { crearEntidad } from "../utils/crearEntidad.js";
+import { editarEntidad } from "../utils/editarEntidad.js";
 
 export const empezarTurnoCaja = async (req, res) => {
   const usuario = req.user;
@@ -76,6 +77,47 @@ export const obtenerTurnoCajasAbiertas = async (req, res) => {
       success: true,
       data: turnoCajas,
       message: "Turnos de cajas obtenidos exitosamente",
+    });
+  } catch (err) {
+    console.log(err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+export const cerrarTurnoCaja = async (req, res) => {
+  const { id } = req.params;
+  const usuario = req.user;
+
+  try {
+    const turnoCaja = await Turno_Caja.findByPk(id);
+
+    if (!turnoCaja) {
+      return res.status(404).json({
+        success: false,
+        message: "No se encontró el turno de caja",
+      });
+    }
+
+    const transaction = await sequelize.transaction();
+
+    await editarEntidad({
+      modelo: Turno_Caja,
+      id,
+      datos: { cierre: new Date() },
+      entidad: "TURNO_CAJA",
+      descripcion: `Cerro el turno de ${turnoCaja.turno} para la caja con ID ${turnoCaja.id_caja}`,
+      req,
+      usuario,
+      transaction,
+    });
+
+    await transaction.commit();
+    return res.status(200).json({
+      success: true,
+      data: turnoCaja.toJSON(),
+      message: "Turno de caja cerrado exitosamente",
     });
   } catch (err) {
     console.log(err);

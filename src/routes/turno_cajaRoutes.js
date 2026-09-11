@@ -1,6 +1,7 @@
 import express from "express";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import {
+  cerrarTurnoCaja,
   empezarTurnoCaja,
   obtenerTurnoCajasAbiertas,
 } from "../controllers/turno_cajaController.js";
@@ -12,6 +13,6 @@ router
   .get("/usuario/abiertas", authMiddleware, obtenerTurnoCajasAbiertas)
   .get("/:apertura", authMiddleware, obtenerTurnoCajasAbiertas) //Cierres por fecha
   .post("/empezar_turno", authMiddleware, empezarTurnoCaja)
-  .post("/cerrar_turno", authMiddleware, obtenerTurnoCajasAbiertas); //Cerrar turno
+  .put("/cerrar_turno/:id", authMiddleware, cerrarTurnoCaja); 
 
 export default router;
