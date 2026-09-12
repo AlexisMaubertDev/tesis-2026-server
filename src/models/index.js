@@ -10,6 +10,7 @@ import Acarreo from "./Acarreo.model.js";
 import Turno_Caja from "./TurnoCaja.model.js";
 import Cobro from "./Cobro.model.js";
 import Auditoria from "./Auditoria.model.js";
+import Turno_Barrera_Usuario from "./TurnoBarreraUsuario.model.js";
 
 //Usuario pertenece a una sucursal
 Usuario.belongsTo(Sucursal, { foreignKey: "id_sucursal" });
@@ -35,6 +36,18 @@ Cobro.belongsTo(Turno_Caja, { foreignKey: "id_turno_caja" });
 Turno_Caja.belongsTo(Usuario, { foreignKey: "id_usuario" });
 Usuario.hasMany(Turno_Caja, { foreignKey: "id_usuario" });
 
+Usuario.hasOne(Turno_Grua, {
+  foreignKey: "usuario_id",
+  as: "turno_grua_activo",
+  scope: { activo: true },
+});
+
+Usuario.hasOne(Turno_Caja, {
+  foreignKey: "usuario_id",
+  as: "turno_caja_activo",
+  scope: { activo: true },
+});
+
 //Cada acarreo tiene un solo cobro
 Acarreo.belongsTo(Cobro, { foreignKey: "id_cobro" });
 Cobro.hasOne(Acarreo, { foreignKey: "id_cobro" });
@@ -54,6 +67,22 @@ Turno_Barrera.hasMany(Acarreo, { foreignKey: "id_turno_barrera" });
 //cada turno tiene una sola barrera
 Turno_Barrera.belongsTo(Barrera, { foreignKey: "id_barrera" });
 Barrera.hasMany(Turno_Barrera, { foreignKey: "id_barrera" });
+Barrera.hasOne(Turno_Barrera, {
+  foreignKey: "id_barrera",
+  as: "turno_barrera_activo",
+  scope: { activo: true },
+});
+
+//Cada usuario tiene muchos turnos de barrera
+Usuario.hasMany(Turno_Barrera_Usuario, { foreignKey: "id_usuario" });
+
+//tabla intermedia entre turno de barrera y usuario
+Turno_Barrera_Usuario.belongsTo(Usuario, { foreignKey: "id_usuario" });
+
+//Cada turno barrera puede tener muchos usuarios asignados
+Turno_Barrera.hasMany(Turno_Barrera_Usuario, {
+  foreignKey: "id_turno_barrera",
+});
 
 //cada turno tiene una sola grua
 Turno_Grua.belongsTo(Grua, { foreignKey: "id_grua" });

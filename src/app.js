@@ -8,6 +8,7 @@ import cajaRoutes from "./routes/cajaRoute.js";
 import gruaRoutes from "./routes/gruaRoute.js";
 import barreraRoutes from "./routes/barreraRoute.js";
 import turnoCajaRoutes from "./routes/turno_cajaRoutes.js";
+import testRoutes from "./routes/testRoutes.js";
 
 const app = express();
 
@@ -22,5 +23,10 @@ app.use("/api/cajas", cajaRoutes);
 app.use("/api/gruas", gruaRoutes);
 app.use("/api/barreras", barreraRoutes);
 app.use("/api/turno_caja", turnoCajaRoutes);
+
+console.log(process.env.NODE_ENV);
+if (process.env.NODE_ENV === "development") {
+  app.use("/api/test", testRoutes);
+}
 
 export default app;

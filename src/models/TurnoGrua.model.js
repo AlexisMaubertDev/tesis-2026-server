@@ -61,6 +61,10 @@ const Turno_Grua = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    activo: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+    },
     fecha_inicio: {
       type: DataTypes.DATE,
       allowNull: false,

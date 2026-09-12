@@ -37,6 +37,10 @@ const Turno_Caja = sequelize.define(
       type: DataTypes.DATE,
       allowNull: true,
     },
+    activo: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+    },
     total_autos: {
       type: DataTypes.INTEGER,
       allowNull: true,

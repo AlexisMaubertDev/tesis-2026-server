@@ -22,6 +22,10 @@ const Turno_Barrera = sequelize.define(
       type: DataTypes.ENUM("Mañana", "Tarde", "Noche"),
       allowNull: false,
     },
+    activo: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+    },
     fecha_inicio: {
       type: DataTypes.DATE,
       allowNull: false,
