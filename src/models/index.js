@@ -37,10 +37,27 @@ Turno_Caja.belongsTo(Usuario, { foreignKey: "id_usuario" });
 Usuario.hasMany(Turno_Caja, { foreignKey: "id_usuario" });
 
 Usuario.hasOne(Turno_Grua, {
-  foreignKey: "usuario_id",
+  foreignKey: "id_chofer",
+  as: "turno_grua_chofer_activo",
+  scope: { activo: true },
+});
+
+Usuario.hasOne(Turno_Grua, {
+  foreignKey: "id_enganchador",
+  as: "turno_grua_enganchador_activo",
+  scope: { activo: true },
+});
+Usuario.hasOne(Turno_Grua, {
+  foreignKey: "id_supervisor",
+  as: "turno_grua_supervisor_activo",
+  scope: { activo: true },
+});
+Grua.hasOne(Turno_Grua, {
+  foreignKey: "id_grua",
   as: "turno_grua_activo",
   scope: { activo: true },
 });
+Turno_Grua.belongsTo(Grua, { foreignKey: "id_grua" });
 
 Usuario.hasOne(Turno_Caja, {
   foreignKey: "usuario_id",

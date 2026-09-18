@@ -8,12 +8,14 @@ import {
   crearUsuario,
   obtenerUsuarios,
   eliminarUsuario,
+  obtenerGrueros,
 } from "../controllers/usuario.controller.js";
 
 const router = express.Router();
 
 router
   .get("/", authMiddleware, supervisorMiddleware, obtenerUsuarios)
+  .get("/grueros", authMiddleware, supervisorMiddleware, obtenerGrueros)
   .post("/", authMiddleware, sistemasMiddleware, crearUsuario)
   .delete("/:legajo", authMiddleware, sistemasMiddleware, eliminarUsuario);
 

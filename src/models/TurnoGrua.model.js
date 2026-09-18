@@ -42,7 +42,7 @@ const Turno_Grua = sequelize.define(
       },
     },
     turno: {
-      type: DataTypes.ENUM("Mañana", "Tarde", "Noche"),
+      type: DataTypes.ENUM("1", "2", "3"),
       allowNull: false,
     },
     nombre_agente: {

@@ -1,8 +1,9 @@
-import { Caja, Turno_Caja, Usuario } from "../models/index.js";
+import { Caja, Turno_Caja, Turno_Grua, Usuario } from "../models/index.js";
 import Sucursal from "../models/Sucursal.model.js";
 import bcrypt from "bcrypt";
 import { crearEntidad } from "../utils/crearEntidad.js";
 import sequelize from "../config/db.js";
+import { registrarAuditoria } from "../utils/auditoria.js";
 
 export const obtenerUsuarios = async (req, res) => {
   try {
@@ -11,6 +12,53 @@ export const obtenerUsuarios = async (req, res) => {
         exclude: ["password", "id_sucursal", "intentos_restantes", "id"],
       },
       include: { model: Sucursal, attributes: ["nombre"] },
+    });
+
+    if (usuarios.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No se encontraron usuarios",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: usuarios,
+      message: "Usuarios obtenidos exitosamente",
+    });
+  } catch (err) {
+    console.log(err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+export const obtenerGrueros = async (req, res) => {
+  try {
+    const usuarios = await Usuario.findAll({
+      attributes: {
+        exclude: ["password", "id_sucursal", "intentos_restantes"],
+      },
+      include: [
+        {
+          model: Sucursal,
+          attributes: ["nombre"],
+        },
+        {
+          model: Turno_Grua,
+          as: "turno_grua_chofer_activo",
+          required: false,
+        },
+        {
+          model: Turno_Grua,
+          as: "turno_grua_enganchador_activo",
+          required: false,
+        },
+      ],
+      where: {
+        rol: "GRUERO",
+      },
+      order: [["legajo", "ASC"]],
     });
 
     if (usuarios.length === 0) {
@@ -101,6 +149,16 @@ export const crearUsuario = async (req, res) => {
       id_sucursal: Sucursal.id,
     });
 
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "CREAR",
+      entidad: "USUARIO",
+      idEntidad: usuario.id,
+      descripcion: `Creó el usuario ${usuario.nombre} ${usuario.apellido}`,
+      despues: usuario,
+    });
+
     return res.status(201).json({
       success: true,
       data: usuario,
@@ -139,6 +197,3 @@ export const eliminarUsuario = async (req, res) => {
       .json({ success: false, message: "Error en el servidor" });
   }
 };
-
-
-

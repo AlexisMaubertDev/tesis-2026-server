@@ -1,10 +1,9 @@
 import express from "express";
-import { authMiddleware } from "../middlewares/authMiddleware";
-import { supervisorMiddleware } from "../middlewares/rolMiddleware";
-import {
-  asignarGrua,
-  obtenerGruasActivasPorSucursal,
-} from "../controllers/turno_gruaController";
+
+import { obtenerGruasSucursal } from "../controllers/gruaController.js";
+import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { supervisorMiddleware } from "../middlewares/rolMiddleware.js";
+import { finalizarTodosLosTurnosGruasPorSucursal } from "../controllers/turno_gruaController.js";
 
 const router = express.Router();
 
@@ -13,6 +12,13 @@ router
     "/sucursal:id",
     authMiddleware,
     supervisorMiddleware,
-    obtenerGruasActivasPorSucursal,
+    obtenerGruasSucursal,
   )
-  .post("/", authMiddleware, supervisorMiddleware, asignarGrua);
+  .put(
+    "/finalizar/:id_sucursal",
+    authMiddleware,
+    supervisorMiddleware,
+    finalizarTodosLosTurnosGruasPorSucursal,
+  );
+
+export default router;
