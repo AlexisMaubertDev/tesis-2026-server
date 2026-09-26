@@ -266,3 +266,55 @@ export const finalizarTodosLosTurnosGruasPorSucursal = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+export const agregarIncidencia = async (req, res) => {
+  const { id_turno_grua } = req.params;
+  const { incidencias } = req.body;
+
+  let transaction;
+
+  if (!incidencias || !incidencias.trim()) {
+    return res
+      .status(400)
+      .json({ error: "La incidencia no puede estar vacía" });
+  }
+  try {
+    const turnoGrua = await Turno_Grua.findByPk(id_turno_grua);
+    if (!turnoGrua) {
+      return res.status(404).json({ error: "Turno de grua no encontrado" });
+    }
+    transaction = await sequelize.transaction();
+
+    const incidenciasPrevias = turnoGrua.incidencias || "";
+
+    const nuevaEntrada = `${incidencias.trim()}`;
+
+    const incidenciaFormateada = incidenciasPrevias
+      ? `${incidenciasPrevias}\n- ${nuevaEntrada}`
+      : `- ${nuevaEntrada}`;
+
+    await turnoGrua.update(
+      { incidencias: incidenciaFormateada },
+      { transaction },
+    );
+
+    await registrarAuditoria({
+      usuario: req.user,
+      entidad: "TURNO_GRUA",
+      idEntidad: turnoGrua.id_grua,
+      accion: "ACTUALIZAR",
+      descripcion: `Se agrego una incidencia al turno de grua: ${id_turno_grua}`,
+      req,
+      despues: { incidencias: incidenciaFormateada },
+    });
+
+    await transaction.commit();
+    return res
+      .status(200)
+      .json({ success: true, message: "Incidencia agregada con éxito" });
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    console.error(error);
+    return res.status(500).json({ error: "Error en el servidor" });
+  }
+};
