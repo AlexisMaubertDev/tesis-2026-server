@@ -318,3 +318,46 @@ export const agregarIncidencia = async (req, res) => {
     return res.status(500).json({ error: "Error en el servidor" });
   }
 };
+
+export const finalizarTurno = async (req, res) => {
+  const { id_turno_grua } = req.params;
+  let transaction;
+  try {
+    transaction = await sequelize.transaction();
+
+    const turnoGrua = await Turno_Grua.findByPk(id_turno_grua, { transaction });
+    if (!turnoGrua) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Turno de grua no encontrado" });
+    }
+
+    await turnoGrua.update({ activo: false }, { transaction });
+
+    await Grua.update(
+      { estado: "DISPONIBLE" },
+      { where: { id: turnoGrua.id_grua }, transaction },
+    );
+
+    await registrarAuditoria({
+      usuario: req.user,
+      entidad: "TURNO_GRUA",
+      idEntidad: turnoGrua.id_grua,
+      accion: "FINALIZAR_TURNO",
+      descripcion: `Se cerro el turno de grua: ${id_turno_grua}`,
+      req,
+    });
+
+    await transaction.commit();
+    return res
+      .status(200)
+      .json({
+        success: true,
+        message: "Turno finalizado con éxito",
+        data: turnoGrua,
+      });
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    console.error(error);
+    return res.status(500).json({ error: "Error en el servidor" });
+  }
+};

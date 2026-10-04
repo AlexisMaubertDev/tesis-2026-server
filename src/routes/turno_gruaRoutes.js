@@ -6,13 +6,14 @@ import { supervisorMiddleware } from "../middlewares/rolMiddleware.js";
 import {
   finalizarTodosLosTurnosGruasPorSucursal,
   agregarIncidencia,
+  finalizarTurno,
 } from "../controllers/turno_gruaController.js";
 
 const router = express.Router();
 
 router
   .get(
-    "/sucursal:id",
+    "/sucursal/:id",
     authMiddleware,
     supervisorMiddleware,
     obtenerGruasSucursal,
@@ -28,6 +29,12 @@ router
     authMiddleware,
     supervisorMiddleware,
     agregarIncidencia,
+  )
+  .put(
+    "/:id_turno_grua/finalizar",
+    authMiddleware,
+    supervisorMiddleware,
+    finalizarTurno,
   );
 
 export default router;
