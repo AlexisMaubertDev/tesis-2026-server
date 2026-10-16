@@ -9,6 +9,7 @@ import gruaRoutes from "./routes/gruaRoute.js";
 import barreraRoutes from "./routes/barreraRoute.js";
 import turnoCajaRoutes from "./routes/turno_cajaRoutes.js";
 import turnoGruaRoutes from "./routes/turno_gruaRoutes.js";
+import acarreoRoutes from "./routes/acarreoRoutes.js";
 import testRoutes from "./routes/testRoutes.js";
 
 const app = express();
@@ -25,6 +26,7 @@ app.use("/api/gruas", gruaRoutes);
 app.use("/api/barreras", barreraRoutes);
 app.use("/api/turno_caja", turnoCajaRoutes);
 app.use("/api/turno_grua", turnoGruaRoutes);
+app.use("/api/acarreos", acarreoRoutes);
 
 console.log(process.env.NODE_ENV);
 if (process.env.NODE_ENV === "development") {

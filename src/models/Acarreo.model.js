@@ -20,7 +20,7 @@ const Acarreo = sequelize.define(
 
     id_cobro: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
       references: {
         model: "cobros",
         key: "id",
@@ -36,7 +36,7 @@ const Acarreo = sequelize.define(
     },
     id_turno_barrera: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
       references: {
         model: "turno_barrera",
         key: "id",

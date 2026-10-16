@@ -1,7 +1,9 @@
+import { Op } from "sequelize";
 import sequelize from "../config/db.js";
 import { Caja, Turno_Caja } from "../models/index.js";
 import { crearEntidad } from "../utils/crearEntidad.js";
 import { editarEntidad } from "../utils/editarEntidad.js";
+import { registrarAuditoria } from "../utils/auditoria.js";
 
 export const empezarTurnoCaja = async (req, res) => {
   const usuario = req.user;
@@ -9,7 +11,10 @@ export const empezarTurnoCaja = async (req, res) => {
 
   try {
     const turnoCaja_previo = await Turno_Caja.findOne({
-      where: { id_caja, cierre: null },
+      where: {
+        id_caja,
+        [Op.or]: [{ activo: true }, { id_usuario: usuario.id }],
+      },
     });
 
     if (turnoCaja_previo) {
@@ -40,6 +45,16 @@ export const empezarTurnoCaja = async (req, res) => {
       transaction,
     });
 
+    await registrarAuditoria({
+      req,
+      usuario,
+      accion: "INICIAR_TURNO",
+      entidad: "TURNO_CAJA",
+      idEntidad: turnoCaja.toJSON().id,
+      descripcion: `Empezó el turno ${turno} para la caja número ${caja.numero_caja}`,
+      datosNuevos: turnoCaja.toJSON(),
+    });
+
     await transaction.commit();
     return res.status(200).json({
       success: true,
@@ -53,6 +68,7 @@ export const empezarTurnoCaja = async (req, res) => {
     });
   } catch (err) {
     console.log(err);
+    if (transaction) await transaction.rollback();
     return res
       .status(500)
       .json({ success: false, message: "Error en el servidor" });

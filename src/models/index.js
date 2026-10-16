@@ -64,7 +64,11 @@ Usuario.hasOne(Turno_Caja, {
   as: "turno_caja_activo",
   scope: { activo: true },
 });
-
+Caja.hasOne(Turno_Caja, {
+  foreignKey: "id_caja",
+  as: "turno_caja_activo",
+  scope: { activo: true },
+});
 //Cada acarreo tiene un solo cobro
 Acarreo.belongsTo(Cobro, { foreignKey: "id_cobro" });
 Cobro.hasOne(Acarreo, { foreignKey: "id_cobro" });

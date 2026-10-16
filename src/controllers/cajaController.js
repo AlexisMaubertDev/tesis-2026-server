@@ -145,9 +145,12 @@ export const obtenerCajasSucursal = async (req, res) => {
       where: { id_sucursal: id },
       include: {
         model: Turno_Caja,
-        include: Usuario,
-        where: { cierre: null },
+        as: "turno_caja_activo",
         required: false,
+        include: {
+          model: Usuario,
+          attributes: ["id", "nombre", "apellido", "legajo"],
+        },
       },
     });
 

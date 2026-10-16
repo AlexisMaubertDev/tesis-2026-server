@@ -1,5 +1,13 @@
-import sequelize from "../config/db";
-import { Acarreo, Cobro, Turno_Barrera, Turno_Grua, Vehiculo } from "../models";
+import { Op } from "sequelize";
+import sequelize from "../config/db.js";
+import {
+  Acarreo,
+  Cobro,
+  Turno_Barrera,
+  Turno_Grua,
+  Vehiculo,
+} from "../models/index.js";
+import { registrarAuditoria } from "../utils/auditoria.js";
 
 export const crearAcarreo = async (req, res) => {
   const {
@@ -11,14 +19,26 @@ export const crearAcarreo = async (req, res) => {
     tuvoSiniestro,
     fueDenuncia,
     damages,
-    Turno_Grua,
   } = req.body;
+
+  let transaction;
+
+  const user = req.user;
   try {
-    const transaction = await sequelize.transaction();
+    transaction = await sequelize.transaction();
 
-    const vehiculo = await Vehiculo.create(vehiculo, { transaction });
+    const parsedVehiculo = {
+      patente: vehiculo.patente.toUpperCase(),
+      marca: vehiculo.marca.toUpperCase(),
+      modelo: vehiculo.modelo.toUpperCase(),
+      color: vehiculo.color.toUpperCase(),
+    };
 
-    if (!vehiculo) {
+    const vehiculo_creado = await Vehiculo.create(parsedVehiculo, {
+      transaction,
+    });
+
+    if (!vehiculo_creado) {
       await transaction.rollback();
       return res.status(400).json({
         success: false,
@@ -26,18 +46,26 @@ export const crearAcarreo = async (req, res) => {
       });
     }
 
+    const turno_grua = await Turno_Grua.findOne({
+      where: {
+        [Op.or]: [{ id_chofer: user.id }, { id_enganchador: user.id }],
+        activo: true,
+      },
+      transaction,
+    });
+
     const acarreo = await Acarreo.create(
       {
-        id_vehiculo: vehiculo.id,
-        id_turno_grua: Turno_Grua.id,
+        id_vehiculo: vehiculo_creado.id,
+        id_turno_grua: turno_grua.id,
         direccion,
         motivo,
         numero_acta,
         observaciones,
-        tuvoSiniestro,
-        fueDenuncia,
+        tuvo_siniestro: tuvoSiniestro,
+        fue_denuncia: fueDenuncia,
         damages,
-        fechaAcarreo: Date.now(),
+        fecha_acarreo: Date.now(),
         estado: "ACARREADO",
       },
       { transaction },
@@ -52,6 +80,15 @@ export const crearAcarreo = async (req, res) => {
 
     await transaction.commit();
 
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "CREAR",
+      entidad: "ACARREO",
+      idEntidad: acarreo.id,
+      descripcion: `Se creo el acarreo: ${acarreo.id}`,
+    });
+
     return res.status(201).json({
       success: true,
       message: "Acarreo creado correctamente",
@@ -59,6 +96,7 @@ export const crearAcarreo = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+    if (transaction) await transaction.rollback();
     return res
       .status(500)
       .json({ success: false, message: "Error en el servidor" });
