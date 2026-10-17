@@ -12,8 +12,8 @@ export const empezarTurnoCaja = async (req, res) => {
   try {
     const turnoCaja_previo = await Turno_Caja.findOne({
       where: {
-        id_caja,
-        [Op.or]: [{ activo: true }, { id_usuario: usuario.id }],
+        activo: true,
+        [Op.or]: [{ id_caja }, { id_usuario: usuario.id }],
       },
     });
 
@@ -121,7 +121,7 @@ export const cerrarTurnoCaja = async (req, res) => {
     await editarEntidad({
       modelo: Turno_Caja,
       id,
-      datos: { cierre: new Date() },
+      datos: { cierre: new Date(), activo: false },
       entidad: "TURNO_CAJA",
       descripcion: `Cerro el turno de ${turnoCaja.turno} para la caja con ID ${turnoCaja.id_caja}`,
       req,

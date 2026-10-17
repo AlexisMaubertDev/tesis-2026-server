@@ -143,15 +143,18 @@ export const obtenerCajasSucursal = async (req, res) => {
     const { id } = req.params;
     const cajas = await Caja.findAll({
       where: { id_sucursal: id },
-      include: {
-        model: Turno_Caja,
-        as: "turno_caja_activo",
-        required: false,
-        include: {
-          model: Usuario,
-          attributes: ["id", "nombre", "apellido", "legajo"],
+      include: [
+        { model: Sucursal },
+        {
+          model: Turno_Caja,
+          as: "turno_caja_activo",
+          required: false,
+          include: {
+            model: Usuario,
+            attributes: ["id", "nombre", "apellido", "legajo"],
+          },
         },
-      },
+      ],
     });
 
     if (cajas.length === 0) {
