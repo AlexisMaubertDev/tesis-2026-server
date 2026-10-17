@@ -14,13 +14,6 @@ export const obtenerUsuarios = async (req, res) => {
       include: { model: Sucursal, attributes: ["id", "nombre"] },
     });
 
-    if (usuarios.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No se encontraron usuarios",
-      });
-    }
-
     return res.status(200).json({
       success: true,
       data: usuarios,
@@ -60,13 +53,6 @@ export const obtenerGrueros = async (req, res) => {
       },
       order: [["legajo", "ASC"]],
     });
-
-    if (usuarios.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No se encontraron usuarios",
-      });
-    }
 
     return res.status(200).json({
       success: true,

@@ -8,6 +8,8 @@ import {
   cerrarTurnoCaja,
   empezarTurnoCaja,
   obtenerTurnoCajasAbiertas,
+  obtenerTurnosDeCaja,
+  obtenerTurnosPorFecha,
 } from "../controllers/turno_cajaController.js";
 
 const router = express.Router();
@@ -17,15 +19,20 @@ router
     "/cajas/:id",
     authMiddleware,
     supervisorMiddleware,
-    obtenerTurnoCajasAbiertas,
-  ) //Cierres por caja
+    obtenerTurnosDeCaja,
+  ) //Historial de turnos de la caja
   .get(
     "/usuario/abiertas",
     authMiddleware,
     supervisorMiddleware,
     obtenerTurnoCajasAbiertas,
-  )
-  .get("/:apertura", authMiddleware, supervisorMiddleware, obtenerTurnoCajasAbiertas) //Cierres por fecha
+  ) //Turnos abiertos del usuario autenticado
+  .get(
+    "/:apertura",
+    authMiddleware,
+    supervisorMiddleware,
+    obtenerTurnosPorFecha,
+  ) //Turnos por fecha de apertura (AAAA-MM-DD)
   .post("/empezar_turno", authMiddleware, cajeroMiddleware, empezarTurnoCaja)
   .put("/cerrar_turno/:id", authMiddleware, cajeroMiddleware, cerrarTurnoCaja);
 

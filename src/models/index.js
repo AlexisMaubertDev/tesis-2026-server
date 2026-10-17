@@ -60,7 +60,7 @@ Grua.hasOne(Turno_Grua, {
 Turno_Grua.belongsTo(Grua, { foreignKey: "id_grua" });
 
 Usuario.hasOne(Turno_Caja, {
-  foreignKey: "usuario_id",
+  foreignKey: "id_usuario",
   as: "turno_caja_activo",
   scope: { activo: true },
 });

@@ -19,6 +19,12 @@ export const obtenerVehiculo = async (req, res) => {
     const { id } = req.params;
     const vehiculo = await Vehiculo.findByPk(id);
 
+    if (!vehiculo) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Vehículo no encontrado" });
+    }
+
     return res.status(200).json({
       success: true,
       data: vehiculo,

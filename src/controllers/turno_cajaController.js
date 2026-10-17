@@ -77,11 +77,13 @@ export const empezarTurnoCaja = async (req, res) => {
   }
 };
 
+// Criterio único de "turno abierto": `activo: true` (lo usan también la
+// asociación `turno_caja_activo` y `cerrarTurnoCaja`, que marcan `activo: false`).
 export const obtenerTurnoCajasAbiertas = async (req, res) => {
   const usuario = req.user;
   try {
     const turnoCajas = await usuario.getTurno_Cajas({
-      where: { cierre: null },
+      where: { activo: true },
     });
 
     return res.status(200).json({
@@ -129,6 +131,61 @@ export const cerrarTurnoCaja = async (req, res) => {
       success: true,
       data: turnoCaja.toJSON(),
       message: "Turno de caja cerrado exitosamente",
+    });
+  } catch (err) {
+    console.log(err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+// GET /turno_caja/cajas/:id — historial de turnos de una caja.
+export const obtenerTurnosDeCaja = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const turnos = await Turno_Caja.findAll({
+      where: { id_caja: id },
+      order: [["apertura", "DESC"]],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: turnos,
+      message: "Turnos de la caja obtenidos exitosamente",
+    });
+  } catch (err) {
+    console.log(err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+// GET /turno_caja/:apertura — turnos abiertos en una fecha (AAAA-MM-DD).
+export const obtenerTurnosPorFecha = async (req, res) => {
+  const { apertura } = req.params;
+
+  const desde = new Date(`${apertura}T00:00:00`);
+  const hasta = new Date(`${apertura}T23:59:59.999`);
+
+  if (Number.isNaN(desde.getTime())) {
+    return res.status(400).json({
+      success: false,
+      message: "La fecha debe tener el formato AAAA-MM-DD",
+    });
+  }
+
+  try {
+    const turnos = await Turno_Caja.findAll({
+      where: { apertura: { [Op.between]: [desde, hasta] } },
+      order: [["apertura", "DESC"]],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: turnos,
+      message: "Turnos obtenidos exitosamente",
     });
   } catch (err) {
     console.log(err);
