@@ -11,7 +11,7 @@ export const obtenerUsuarios = async (req, res) => {
       attributes: {
         exclude: ["password", "id_sucursal", "intentos_restantes", "id"],
       },
-      include: { model: Sucursal, attributes: ["nombre"] },
+      include: { model: Sucursal, attributes: ["id", "nombre"] },
     });
 
     if (usuarios.length === 0) {
@@ -166,6 +166,111 @@ export const crearUsuario = async (req, res) => {
     });
   } catch (err) {
     console.log(err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+export const editarUsuario = async (req, res) => {
+  try {
+    const { legajo } = req.params;
+    const {
+      nombre,
+      apellido,
+      dni,
+      numero_turno,
+      trabaja_domingo,
+      email,
+      rol,
+      password,
+      Sucursal,
+    } = req.body;
+
+    const usuario = await Usuario.findOne({ where: { legajo } });
+
+    if (!usuario) {
+      return res.status(404).json({
+        success: false,
+        message: "El legajo ingresado no corresponde a ningún usuario",
+      });
+    }
+
+    if (
+      dni &&
+      dni !== usuario.dni &&
+      (await Usuario.findOne({ where: { dni } }))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "El DNI ingresado ya corresponde a otro usuario",
+      });
+    }
+
+    if (
+      email &&
+      email !== usuario.email &&
+      (await Usuario.findOne({ where: { email } }))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "El email ingresado ya corresponde a otro usuario",
+      });
+    }
+
+    // Sólo se actualizan los campos presentes en el body (edición parcial).
+    const datos = {};
+    if (nombre !== undefined) datos.nombre = nombre;
+    if (apellido !== undefined) datos.apellido = apellido;
+    if (dni !== undefined) datos.dni = dni;
+    if (numero_turno !== undefined) datos.numero_turno = numero_turno;
+    if (trabaja_domingo !== undefined) datos.trabaja_domingo = trabaja_domingo;
+    if (email !== undefined) datos.email = email;
+    if (rol !== undefined) datos.rol = rol;
+    if (Sucursal && Sucursal.id) datos.id_sucursal = Sucursal.id;
+
+    // La contraseña es opcional: si no viene, se conserva la actual.
+    if (password && password.trim()) {
+      const salt = await bcrypt.genSalt(10);
+      datos.password = await bcrypt.hash(password, salt);
+    }
+
+    const antes = usuario.toJSON();
+
+    await usuario.update(datos);
+
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "EDITAR",
+      entidad: "USUARIO",
+      idEntidad: usuario.id,
+      descripcion: `Editó el usuario ${usuario.nombre} ${usuario.apellido}`,
+      antes,
+      despues: usuario,
+    });
+
+    const usuarioActualizado = usuario.toJSON();
+    delete usuarioActualizado.password;
+
+    return res.status(200).json({
+      success: true,
+      data: usuarioActualizado,
+      message: "Usuario actualizado exitosamente",
+    });
+  } catch (err) {
+    console.log(err);
+
+    if (
+      err.name === "SequelizeValidationError" ||
+      err.name === "SequelizeUniqueConstraintError"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: err.errors?.[0]?.message || "Datos inválidos",
+      });
+    }
+
     return res
       .status(500)
       .json({ success: false, message: "Error en el servidor" });

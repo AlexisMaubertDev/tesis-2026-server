@@ -1,5 +1,7 @@
 import express from "express";
 import {
+  editarVehiculo,
+  eliminarVehiculo,
   ingresarVehiculoAPlaya,
   obtenerVehiculo,
   obtenerVehiculos,
@@ -17,6 +19,8 @@ router
     ingresarVehiculoAPlaya,
   )
   .get("/", authMiddleware, obtenerVehiculos)
-  .get("/:id", authMiddleware, obtenerVehiculo);
+  .get("/:id", authMiddleware, obtenerVehiculo)
+  .put("/:id", authMiddleware, editarVehiculo)
+  .delete("/:id", authMiddleware, eliminarVehiculo);
 
 export default router;
