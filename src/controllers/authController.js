@@ -11,13 +11,10 @@ export const login = async (req, res) => {
     const { dni, password } = req.body;
     const user = await Usuario.findOne({ where: { dni }, include: "Sucursal" });
 
-    // Respuesta uniforme ante DNI inexistente o contraseña incorrecta: un 404
-    // con "no corresponde a ningún usuario" permitiría averiguar qué DNIs
-    // están registrados. Mismo status y mensaje en ambos casos.
     if (!user) {
-      return res.status(401).json({
+      return res.status(404).json({
         success: false,
-        message: "DNI o contraseña incorrectos.",
+        message: "El DNI ingresado no corresponde a ningún usuario",
       });
     }
 
@@ -45,7 +42,10 @@ export const login = async (req, res) => {
       await user.save();
       return res.status(401).json({
         success: false,
-        message: "DNI o contraseña incorrectos.",
+        message:
+          "La contraseña ingresada es incorrecta, te quedan " +
+          user.intentos_restantes +
+          " intentos.",
       });
     }
 
