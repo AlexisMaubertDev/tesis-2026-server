@@ -8,7 +8,7 @@ export const authMiddleware = async (req, res, next) => {
   if (!token) {
     console.log("Token no proporcionado");
     return res
-      .status(403)
+      .status(401)
       .json({ success: false, message: "Token de autenticación requerido" });
   }
 
