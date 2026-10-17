@@ -9,6 +9,8 @@ export const empezarTurnoCaja = async (req, res) => {
   const usuario = req.user;
   const { id_caja, turno } = req.body;
 
+  let transaction;
+
   try {
     const turnoCaja_previo = await Turno_Caja.findOne({
       where: {
@@ -33,7 +35,7 @@ export const empezarTurnoCaja = async (req, res) => {
       });
     }
 
-    const transaction = await sequelize.transaction();
+    transaction = await sequelize.transaction();
 
     const turnoCaja = await crearEntidad({
       modelo: Turno_Caja,
