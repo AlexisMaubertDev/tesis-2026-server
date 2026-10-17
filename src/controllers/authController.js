@@ -33,14 +33,14 @@ export const login = async (req, res) => {
       if (user.intentos_restantes === 0) {
         user.bloqueado = true;
         await user.save();
-        return res.status(400).json({
+        return res.status(401).json({
           success: false,
           message:
             "Has agotado tus intentos de inicio de sesión. Tu cuenta ha sido bloqueada.",
         });
       }
       await user.save();
-      return res.status(400).json({
+      return res.status(401).json({
         success: false,
         message:
           "La contraseña ingresada es incorrecta, te quedan " +

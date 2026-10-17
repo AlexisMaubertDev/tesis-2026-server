@@ -18,7 +18,7 @@ export const empezarTurnoCaja = async (req, res) => {
     });
 
     if (turnoCaja_previo) {
-      return res.status(404).json({
+      return res.status(409).json({
         success: false,
         message: "Ya existe un turno de caja abierto para esta caja",
       });
