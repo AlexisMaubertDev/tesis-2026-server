@@ -9,9 +9,25 @@ export const obtenerUsuarios = async (req, res) => {
   try {
     const usuarios = await Usuario.findAll({
       attributes: {
-        exclude: ["password", "id_sucursal", "intentos_restantes", "id"],
+        exclude: ["password", "id_sucursal", "id"],
       },
-      include: { model: Sucursal, attributes: ["id", "nombre"] },
+      include: [
+        { model: Sucursal, attributes: ["id", "nombre", "direccion"] },
+        // Turno de caja abierto del usuario (si tiene), con su caja y sucursal:
+        // lo usa el "Ver detalle" de la tabla de usuarios.
+        {
+          model: Turno_Caja,
+          as: "turno_caja_activo",
+          required: false,
+          include: [
+            {
+              model: Caja,
+              attributes: ["id", "numero_caja", "referencia"],
+              include: [{ model: Sucursal, attributes: ["id", "nombre"] }],
+            },
+          ],
+        },
+      ],
     });
 
     return res.status(200).json({

@@ -2,14 +2,21 @@ import { Op } from "sequelize";
 import sequelize from "../config/db.js";
 import {
   Acarreo,
+  Barrera,
   Cobro,
   Grua,
   Sucursal,
   Turno_Barrera,
+  Turno_Barrera_Usuario,
   Turno_Grua,
+  Usuario,
   Vehiculo,
 } from "../models/index.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
+
+// Datos públicos de un usuario (nunca la contraseña ni los campos internos).
+// Lo usan los includes de acarreos (chofer, enganchador, supervisor, barrera).
+const ATRIBUTOS_USUARIO = ["id", "nombre", "apellido", "legajo", "dni", "rol"];
 
 export const crearAcarreo = async (req, res) => {
   const {
@@ -138,9 +145,30 @@ export const getAcarreosPorPatente = async (req, res) => {
                 { model: Sucursal, attributes: ["id", "nombre", "direccion"] },
               ],
             },
+            { model: Usuario, as: "chofer", attributes: ATRIBUTOS_USUARIO },
+            {
+              model: Usuario,
+              as: "enganchador",
+              attributes: ATRIBUTOS_USUARIO,
+            },
+            { model: Usuario, as: "supervisor", attributes: ATRIBUTOS_USUARIO },
           ],
         },
-        { model: Turno_Barrera },
+        {
+          model: Turno_Barrera,
+          include: [
+            {
+              model: Barrera,
+              attributes: ["id", "ubicacion"],
+              include: [{ model: Sucursal, attributes: ["id", "nombre"] }],
+            },
+            {
+              model: Turno_Barrera_Usuario,
+              as: "usuarios_asignados",
+              include: [{ model: Usuario, attributes: ATRIBUTOS_USUARIO }],
+            },
+          ],
+        },
       ],
     });
 

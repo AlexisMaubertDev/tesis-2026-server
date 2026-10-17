@@ -167,7 +167,13 @@ export const editarVehiculo = async (req, res) => {
         .json({ success: false, message: "Vehículo no encontrado" });
     }
 
-    await vehiculo.update({ marca, modelo, color });
+    // Igual que en el alta de acarreo (`crearAcarreo`), los datos del vehículo
+    // se guardan en mayúsculas.
+    await vehiculo.update({
+      marca: marca.toUpperCase(),
+      modelo: modelo.toUpperCase(),
+      color: color.toUpperCase(),
+    });
 
     return res.status(200).json({
       success: true,

@@ -105,6 +105,13 @@ Turno_Barrera.hasMany(Turno_Barrera_Usuario, {
   foreignKey: "id_turno_barrera",
 });
 
+// Los mismos usuarios asignados, pero con alias explícito: es el que usan los
+// includes (sin alias, la clave del resultado es el plural del nombre del modelo).
+Turno_Barrera.hasMany(Turno_Barrera_Usuario, {
+  foreignKey: "id_turno_barrera",
+  as: "usuarios_asignados",
+});
+
 //cada turno tiene una sola grua
 Turno_Grua.belongsTo(Grua, { foreignKey: "id_grua" });
 Grua.hasMany(Turno_Grua, { foreignKey: "id_grua" });
@@ -157,6 +164,7 @@ export {
   Acarreo,
   Turno_Grua,
   Turno_Barrera,
+  Turno_Barrera_Usuario,
   Grua,
   Barrera,
   Auditoria,
