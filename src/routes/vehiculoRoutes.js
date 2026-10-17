@@ -7,20 +7,18 @@ import {
   obtenerVehiculos,
 } from "../controllers/vehiculoController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
-import { playaMiddleware } from "../middlewares/rolMiddleware.js";
+import {
+  playaMiddleware,
+  supervisorMiddleware,
+} from "../middlewares/rolMiddleware.js";
 
 const router = express.Router();
 
 router
-  .post(
-    "/ingresar",
-    authMiddleware,
-    // playaMiddleware,
-    ingresarVehiculoAPlaya,
-  )
+  .post("/ingresar", authMiddleware, playaMiddleware, ingresarVehiculoAPlaya)
   .get("/", authMiddleware, obtenerVehiculos)
   .get("/:id", authMiddleware, obtenerVehiculo)
-  .put("/:id", authMiddleware, editarVehiculo)
-  .delete("/:id", authMiddleware, eliminarVehiculo);
+  .put("/:id", authMiddleware, supervisorMiddleware, editarVehiculo)
+  .delete("/:id", authMiddleware, supervisorMiddleware, eliminarVehiculo);
 
 export default router;

@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import dotenv from "dotenv";
 import authRoutes from "./routes/authRoutes.js";
 import vehiculoRoutes from "./routes/vehiculoRoutes.js";
 import sucursalRoutes from "./routes/sucursalRoute.js";
@@ -11,11 +12,33 @@ import turnoCajaRoutes from "./routes/turno_cajaRoutes.js";
 import turnoGruaRoutes from "./routes/turno_gruaRoutes.js";
 import acarreoRoutes from "./routes/acarreoRoutes.js";
 import testRoutes from "./routes/testRoutes.js";
+import { apiRateLimiter } from "./middlewares/rateLimitMiddleware.js";
+
+dotenv.config();
 
 const app = express();
 
-app.use(cors());
+// Orígenes permitidos para CORS (lista separada por comas en CORS_ORIGINS).
+// Por defecto, el dev server de Vite.
+const origenesPermitidos = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
+  .split(",")
+  .map((origen) => origen.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin(origen, callback) {
+      // Sin header Origin (apps nativas, curl, mismo origen) siempre pasa.
+      // El navegador sólo completa la petición si el origen está en la lista.
+      if (!origen || origenesPermitidos.includes(origen)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
+  }),
+);
 app.use(express.json());
+app.use("/api", apiRateLimiter);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/vehiculos", vehiculoRoutes);

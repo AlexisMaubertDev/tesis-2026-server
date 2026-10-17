@@ -32,7 +32,35 @@ export const sistemasMiddleware = (req, res, next) => {
   if (req.user.rol !== "SISTEMAS") {
     return res.status(403).json({
       success: false,
-      message: "No tenés permisos para realizar estaacción",
+      message: "No tenés permisos para realizar esta acción",
+    });
+  }
+  next();
+};
+
+export const cajeroMiddleware = (req, res, next) => {
+  if (
+    req.user.rol !== "CAJERO" &&
+    req.user.rol !== "SUPERVISOR" &&
+    req.user.rol !== "SISTEMAS"
+  ) {
+    return res.status(403).json({
+      success: false,
+      message: "No tenés permisos para realizar esta acción",
+    });
+  }
+  next();
+};
+
+export const grueroMiddleware = (req, res, next) => {
+  if (
+    req.user.rol !== "GRUERO" &&
+    req.user.rol !== "SUPERVISOR" &&
+    req.user.rol !== "SISTEMAS"
+  ) {
+    return res.status(403).json({
+      success: false,
+      message: "No tenés permisos para realizar esta acción",
     });
   }
   next();
