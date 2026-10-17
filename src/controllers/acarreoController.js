@@ -3,6 +3,8 @@ import sequelize from "../config/db.js";
 import {
   Acarreo,
   Cobro,
+  Grua,
+  Sucursal,
   Turno_Barrera,
   Turno_Grua,
   Vehiculo,
@@ -100,6 +102,55 @@ export const crearAcarreo = async (req, res) => {
     return res
       .status(500)
       .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+export const getAcarreosPorPatente = async (req, res) => {
+  try {
+    const { patente } = req.params;
+
+    // La patente se guarda en mayúsculas al crear el acarreo, pero se compara
+    // sin distinguir mayúsculas para no depender de eso.
+    const vehiculo = await Vehiculo.findOne({
+      where: sequelize.where(
+        sequelize.fn("UPPER", sequelize.col("patente")),
+        patente.toUpperCase(),
+      ),
+    });
+
+    if (!vehiculo) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Vehículo no encontrado" });
+    }
+
+    const acarreos = await Acarreo.findAll({
+      where: { id_vehiculo: vehiculo.id },
+      order: [["fecha_acarreo", "DESC"]],
+      include: [
+        { model: Vehiculo },
+        {
+          model: Turno_Grua,
+          include: [
+            {
+              model: Grua,
+              include: [
+                { model: Sucursal, attributes: ["id", "nombre", "direccion"] },
+              ],
+            },
+          ],
+        },
+        { model: Turno_Barrera },
+      ],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: acarreos,
+      message: "Acarreos obtenidos exitosamente",
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
