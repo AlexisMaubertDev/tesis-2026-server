@@ -121,7 +121,7 @@ export const getAcarreos = async (req, res) => {
             model: Cobro,
           },
         ],
-        order: ["fecha_acarreo", "ASC"],
+        order: [["fecha_acarreo", "ASC"]],
       },
       { transaction },
     );

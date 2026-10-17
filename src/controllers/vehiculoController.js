@@ -45,7 +45,7 @@ export const ingresarVehiculoAPlaya = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      data,
+      data: vehiculo,
       message: "Vehículo ingresado a la playa exitosamente",
     });
   } catch (err) {
