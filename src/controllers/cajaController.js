@@ -8,10 +8,6 @@ export const obtenerCajas = async (req, res) => {
       order: [["numero_caja", "ASC"]],
     });
 
-    if (cajas.length === 0) {
-      return res.status(404).json({ error: "No se encontraron cajas" });
-    }
-
     return res.status(200).json({
       success: true,
       data: cajas,
@@ -156,10 +152,6 @@ export const obtenerCajasSucursal = async (req, res) => {
         },
       ],
     });
-
-    if (cajas.length === 0) {
-      return res.status(404).json({ error: "No se encontraron cajas" });
-    }
 
     return res.status(200).json({
       success: true,

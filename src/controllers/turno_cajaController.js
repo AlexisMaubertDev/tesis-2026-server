@@ -84,13 +84,6 @@ export const obtenerTurnoCajasAbiertas = async (req, res) => {
       where: { cierre: null },
     });
 
-    if (turnoCajas.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No se encontraron turnos de cajas",
-      });
-    }
-
     return res.status(200).json({
       success: true,
       data: turnoCajas,
