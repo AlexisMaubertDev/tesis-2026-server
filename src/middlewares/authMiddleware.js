@@ -16,6 +16,14 @@ export const authMiddleware = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_TOKEN);
 
     req.user = await Usuario.findByPk(decoded.id);
+
+    // Token válido pero usuario borrado: sin esto, req.user queda undefined y
+    // el middleware de rol rompe con 500 (Cannot read properties of undefined).
+    if (!req.user) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Token de autenticación inválido" });
+    }
   } catch (err) {
     console.log("Token de autenticación inválido");
     return res
