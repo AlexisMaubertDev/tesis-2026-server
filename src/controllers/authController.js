@@ -63,10 +63,15 @@ export const login = async (req, res) => {
       idEntidad: user.id,
       descripcion: "Inicio de sesión",
     });
+    // No devolver el hash de la contraseña: el front lo persiste en redux-persist
+    // y quedaría guardado en el localStorage del navegador.
+    const usuario = user.get({ plain: true });
+    delete usuario.password;
+
     res.status(200).json({
       success: true,
       data: {
-        usuario: user,
+        usuario,
         token,
       },
       message: "Inicio de sesión exitoso",
