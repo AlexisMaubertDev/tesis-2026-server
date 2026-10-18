@@ -9,13 +9,6 @@ export const obtenerSucursales = async (req, res) => {
   try {
     const sucursales = await Sucursal.findAll({ order: [["nombre", "ASC"]] });
 
-    if (sucursales.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No se encontraron sucursales",
-      });
-    }
-
     return res.status(200).json({
       success: true,
       data: sucursales,

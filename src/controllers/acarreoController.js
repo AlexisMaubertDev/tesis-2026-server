@@ -206,9 +206,10 @@ export const getAcarreos = async (req, res) => {
     );
 
     if (acarreos.length === 0) {
-      await transaction.rollback();
-      return res.status(404).json({
-        success: false,
+      await transaction.commit();
+      return res.status(200).json({
+        success: true,
+        data: [],
         message: "No se encontraron Acarreos",
       });
     }

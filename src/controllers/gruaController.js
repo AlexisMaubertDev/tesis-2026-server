@@ -13,10 +13,6 @@ export const obtenerGruas = async (req, res) => {
       order: [["numero", "ASC"]],
     });
 
-    if (gruas.length === 0) {
-      return res.status(404).json({ error: "No se encontraron gruas" });
-    }
-
     return res.status(200).json({
       success: true,
       data: gruas,
