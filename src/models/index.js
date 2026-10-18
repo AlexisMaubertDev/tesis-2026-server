@@ -9,6 +9,7 @@ import Turno_Barrera from "./TurnoBarrera.model.js";
 import Acarreo from "./Acarreo.model.js";
 import Turno_Caja from "./TurnoCaja.model.js";
 import Cobro from "./Cobro.model.js";
+import Tarifa from "./Tarifa.model.js";
 import Auditoria from "./Auditoria.model.js";
 import Turno_Barrera_Usuario from "./TurnoBarreraUsuario.model.js";
 
@@ -162,6 +163,7 @@ export {
   Caja,
   Turno_Caja,
   Cobro,
+  Tarifa,
   Acarreo,
   Turno_Grua,
   Turno_Barrera,

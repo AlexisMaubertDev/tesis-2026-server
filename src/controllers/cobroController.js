@@ -1,5 +1,5 @@
 import sequelize from "../config/db.js";
-import { Acarreo, Cobro, Turno_Caja, Vehiculo } from "../models/index.js";
+import { Acarreo, Cobro, Tarifa, Turno_Caja, Vehiculo } from "../models/index.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
 
 // Los importes se guardan con 2 decimales: redondear antes de comparar evita
@@ -17,11 +17,13 @@ const esImporteValido = (valor) =>
  * Registra el cobro de un vehículo ingresado en la playa (cajero).
  *
  * Verifica el turno de caja abierto del usuario, que el acarreo esté
- * INGRESADO y que los importes sean coherentes; luego crea el `Cobro`, pasa el
- * acarreo a COBRADO y lo vincula (`id_cobro`).
+ * INGRESADO y los importes sean coherentes. El total lo calcula el servidor a
+ * partir de la tarifa vigente (`acarreo + estadía × estadías`); el cliente sólo
+ * informa los medios de pago, que deben sumar exactamente ese total. Luego crea
+ * el `Cobro`, pasa el acarreo a COBRADO y lo vincula (`id_cobro`).
  */
 export const crearCobro = async (req, res) => {
-  const { id_acarreo, estadias, total, efectivo, mp, numero_factura } = req.body;
+  const { id_acarreo, estadias, efectivo, mp, numero_factura } = req.body;
 
   if (!id_acarreo) {
     return res
@@ -29,43 +31,27 @@ export const crearCobro = async (req, res) => {
       .json({ success: false, message: "Falta el acarreo a cobrar" });
   }
 
-  if (![total, efectivo, mp].every(esImporteValido)) {
+  if (!esImporteValido(efectivo) || !esImporteValido(mp)) {
     return res.status(400).json({
       success: false,
       message: "Los importes deben ser números mayores o iguales a cero",
     });
   }
 
-  const totalNum = aImporte(total);
-  const efectivoNum = aImporte(efectivo);
-  const mpNum = aImporte(mp);
+  const estadiasNum =
+    estadias === undefined || estadias === null || estadias === ""
+      ? 0
+      : Number(estadias);
 
-  if (totalNum <= 0) {
-    return res.status(400).json({
-      success: false,
-      message: "El total del cobro debe ser mayor a cero",
-    });
-  }
-
-  if (aImporte(efectivoNum + mpNum) !== totalNum) {
-    return res.status(400).json({
-      success: false,
-      message:
-        "El total debe coincidir con la suma de efectivo y Mercado Pago",
-    });
-  }
-
-  if (
-    estadias !== undefined &&
-    estadias !== null &&
-    estadias !== "" &&
-    (!Number.isInteger(Number(estadias)) || Number(estadias) < 0)
-  ) {
+  if (!Number.isInteger(estadiasNum) || estadiasNum < 0) {
     return res.status(400).json({
       success: false,
       message: "Las estadías deben ser un número entero mayor o igual a cero",
     });
   }
+
+  const efectivoNum = aImporte(efectivo);
+  const mpNum = aImporte(mp);
 
   let transaction;
 
@@ -86,8 +72,9 @@ export const crearCobro = async (req, res) => {
       });
     }
 
+    // El acarreo debe existir, estar en la playa y no tener cobro.
     const acarreo = await Acarreo.findByPk(id_acarreo, {
-      include: [{ model: Vehiculo }],
+      include: { model: Vehiculo },
       transaction,
     });
 
@@ -114,6 +101,33 @@ export const crearCobro = async (req, res) => {
       });
     }
 
+    // El importe sale de la tarifa vigente: acarreo + estadía × estadías.
+    const tarifa = await Tarifa.findOne({
+      where: { vigente: true },
+      order: [["vigente_desde", "DESC"]],
+      transaction,
+    });
+
+    if (!tarifa) {
+      await transaction.rollback();
+      return res.status(409).json({
+        success: false,
+        message: "No hay una tarifa vigente configurada",
+      });
+    }
+
+    const totalNum = aImporte(
+      Number(tarifa.acarreo) + Number(tarifa.estadia) * estadiasNum,
+    );
+
+    if (aImporte(efectivoNum + mpNum) !== totalNum) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: `El total a pagar es $${totalNum}: el efectivo más Mercado Pago debe sumar ese importe`,
+      });
+    }
+
     const cobro = await Cobro.create(
       {
         id_turno_caja: turnoCaja.id,
@@ -122,10 +136,7 @@ export const crearCobro = async (req, res) => {
         efectivo: efectivoNum,
         mp: mpNum,
         fecha: new Date(),
-        estadias:
-          estadias === undefined || estadias === null || estadias === ""
-            ? null
-            : Number(estadias),
+        estadias: estadiasNum,
         numero_factura:
           typeof numero_factura === "string" && numero_factura.trim() !== ""
             ? numero_factura.trim()
