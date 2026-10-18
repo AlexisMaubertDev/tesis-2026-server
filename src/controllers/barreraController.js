@@ -1,6 +1,7 @@
 import sequelize from "../config/db.js";
 import Barrera from "../models/Barrera.model.js";
 import Sucursal from "../models/Sucursal.model.js";
+import { Turno_Barrera, Turno_Barrera_Usuario, Usuario } from "../models/index.js";
 
 export const obtenerBarreras = async (req, res) => {
   try {
@@ -111,5 +112,45 @@ export const editarBarrera = async (req, res) => {
     return res
       .status(500)
       .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+export const obtenerBarrerasSucursal = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const barreras = await Barrera.findAll({
+      where: { id_sucursal: id },
+      include: [
+        { model: Sucursal, attributes: ["id", "nombre", "direccion"] },
+        {
+          model: Turno_Barrera,
+          as: "turno_barrera_activo",
+          required: false,
+          include: [
+            {
+              model: Turno_Barrera_Usuario,
+              as: "usuarios_asignados",
+              required: false,
+              include: [
+                {
+                  model: Usuario,
+                  attributes: ["id", "nombre", "apellido", "legajo", "rol", "numero_turno", "bloqueado"],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      order: [["ubicacion", "ASC"]],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: barreras,
+      message: "Barreras obtenidas exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: "Error en el servidor" });
   }
 };

@@ -95,10 +95,11 @@ Barrera.hasOne(Turno_Barrera, {
 });
 
 //Cada usuario tiene muchos turnos de barrera
-Usuario.hasMany(Turno_Barrera_Usuario, { foreignKey: "id_usuario" });
+Usuario.hasMany(Turno_Barrera_Usuario, { foreignKey: "id_usuario", as: "turnos_barrera" });
 
 //tabla intermedia entre turno de barrera y usuario
 Turno_Barrera_Usuario.belongsTo(Usuario, { foreignKey: "id_usuario" });
+Turno_Barrera_Usuario.belongsTo(Turno_Barrera, { foreignKey: "id_turno_barrera" });
 
 //Cada turno barrera puede tener muchos usuarios asignados
 Turno_Barrera.hasMany(Turno_Barrera_Usuario, {

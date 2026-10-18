@@ -1,4 +1,4 @@
-import { Caja, Turno_Caja, Turno_Grua, Usuario } from "../models/index.js";
+import { Caja, Turno_Caja, Turno_Grua, Turno_Barrera, Turno_Barrera_Usuario, Usuario } from "../models/index.js";
 import Sucursal from "../models/Sucursal.model.js";
 import bcrypt from "bcrypt";
 import { crearEntidad } from "../utils/crearEntidad.js";
@@ -302,5 +302,35 @@ export const eliminarUsuario = async (req, res) => {
     return res
       .status(500)
       .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+export const obtenerPlayeros = async (req, res) => {
+  try {
+    const usuarios = await Usuario.findAll({
+      attributes: {
+        exclude: ["password", "id_sucursal", "intentos_restantes"],
+      },
+      where: { rol: "PLAYERO" },
+      include: [
+        { model: Sucursal, attributes: ["id", "nombre", "direccion"] },
+        {
+          model: Turno_Barrera_Usuario,
+          as: "turnos_barrera",
+          required: false,
+          include: [{ model: Turno_Barrera, required: false }],
+        },
+      ],
+      order: [["legajo", "ASC"]],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: usuarios,
+      message: "Playeros obtenidos exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: "Error en el servidor" });
   }
 };

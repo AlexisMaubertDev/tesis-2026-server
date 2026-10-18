@@ -32,7 +32,15 @@ const Turno_Barrera = sequelize.define(
     },
     fecha_fin: {
       type: DataTypes.DATE,
-      allowNull: false,
+      allowNull: true,
+    },
+    observaciones: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    incidencias: {
+      type: DataTypes.TEXT,
+      allowNull: true,
     },
   },
   {

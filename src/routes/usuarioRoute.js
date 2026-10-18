@@ -10,6 +10,7 @@ import {
   eliminarUsuario,
   editarUsuario,
   obtenerGrueros,
+  obtenerPlayeros,
 } from "../controllers/usuario.controller.js";
 
 const router = express.Router();
@@ -17,6 +18,7 @@ const router = express.Router();
 router
   .get("/", authMiddleware, supervisorMiddleware, obtenerUsuarios)
   .get("/grueros", authMiddleware, supervisorMiddleware, obtenerGrueros)
+  .get("/playeros", authMiddleware, supervisorMiddleware, obtenerPlayeros)
   .post("/", authMiddleware, sistemasMiddleware, crearUsuario)
   .put("/:legajo", authMiddleware, sistemasMiddleware, editarUsuario)
   .delete("/:legajo", authMiddleware, sistemasMiddleware, eliminarUsuario);
