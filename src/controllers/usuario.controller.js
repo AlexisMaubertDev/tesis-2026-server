@@ -334,3 +334,48 @@ export const obtenerPlayeros = async (req, res) => {
     return res.status(500).json({ success: false, message: "Error en el servidor" });
   }
 };
+
+export const bloquearUsuario = async (req, res) => {
+  try {
+    const { legajo } = req.params;
+    const { bloqueado } = req.body ?? {};
+
+    const usuario = await Usuario.findOne({ where: { legajo } });
+    if (!usuario) {
+      return res.status(404).json({
+        success: false,
+        message: "El legajo ingresado no corresponde a ningún usuario",
+      });
+    }
+
+    const nuevoBloqueado =
+      typeof bloqueado === "boolean" ? bloqueado : !usuario.bloqueado;
+
+    const datos = { bloqueado: nuevoBloqueado };
+    if (!nuevoBloqueado) {
+      datos.intentos_restantes = 3;
+    }
+
+    await usuario.update(datos);
+
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: nuevoBloqueado ? "BLOQUEAR_USUARIO" : "DESBLOQUEAR_USUARIO",
+      entidad: "USUARIO",
+      idEntidad: usuario.id,
+      descripcion: `${nuevoBloqueado ? "Bloqueó" : "Desbloqueó"} al usuario ${usuario.nombre} ${usuario.apellido} (legajo ${legajo})`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: { legajo: usuario.legajo, bloqueado: nuevoBloqueado },
+      message: nuevoBloqueado
+        ? "Usuario bloqueado exitosamente"
+        : "Usuario desbloqueado exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: "Error en el servidor" });
+  }
+};
