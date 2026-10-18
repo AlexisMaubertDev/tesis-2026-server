@@ -1,6 +1,11 @@
 import sequelize from "../config/db.js";
 import { Acarreo, Cobro, Tarifa, Turno_Caja, Vehiculo } from "../models/index.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
+import {
+  HORAS_POR_ESTADIA,
+  MAX_ESTADIAS,
+  calcularEstadias,
+} from "../utils/estadias.js";
 
 // Los importes se guardan con 2 decimales: redondear antes de comparar evita
 // falsos negativos por errores de punto flotante (0.1 + 0.2 !== 0.3).
@@ -14,16 +19,68 @@ const esImporteValido = (valor) =>
   Number(valor) >= 0;
 
 /**
+ * Vista previa del cobro (lo que la pantalla del cajero muestra antes de
+ * registrar): la tarifa vigente, las estadías calculadas por reloj y el total
+ * a abonar. Así el importe se calcula en un solo lugar (el servidor).
+ */
+export const obtenerPreviewCobro = async (req, res) => {
+  try {
+    const { id_acarreo } = req.params;
+
+    const acarreo = await Acarreo.findByPk(id_acarreo);
+
+    if (!acarreo) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Acarreo no encontrado" });
+    }
+
+    const tarifa = await Tarifa.findOne({
+      where: { vigente: true },
+      order: [["vigente_desde", "DESC"]],
+    });
+
+    const estadias = calcularEstadias(acarreo.fecha_acarreo);
+    const total = tarifa
+      ? aImporte(Number(tarifa.acarreo) + Number(tarifa.estadia) * estadias)
+      : null;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        id_acarreo: acarreo.id,
+        fecha_acarreo: acarreo.fecha_acarreo,
+        estadias,
+        max_estadias: MAX_ESTADIAS,
+        horas_por_estadia: HORAS_POR_ESTADIA,
+        tope_estadias: estadias >= MAX_ESTADIAS,
+        tarifa,
+        total,
+      },
+      message: tarifa
+        ? "Total calculado exitosamente"
+        : "No hay una tarifa vigente configurada",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+/**
  * Registra el cobro de un vehículo ingresado en la playa (cajero).
  *
  * Verifica el turno de caja abierto del usuario, que el acarreo esté
  * INGRESADO y los importes sean coherentes. El total lo calcula el servidor a
- * partir de la tarifa vigente (`acarreo + estadía × estadías`); el cliente sólo
- * informa los medios de pago, que deben sumar exactamente ese total. Luego crea
- * el `Cobro`, pasa el acarreo a COBRADO y lo vincula (`id_cobro`).
+ * partir de la tarifa vigente y de las estadías por reloj (cada 12 horas desde
+ * el acarreo, tope 70): `acarreo + estadía × estadías`. El cliente sólo informa
+ * los medios de pago, que deben sumar exactamente ese total. Luego crea el
+ * `Cobro`, pasa el acarreo a COBRADO y lo vincula (`id_cobro`).
  */
 export const crearCobro = async (req, res) => {
-  const { id_acarreo, estadias, efectivo, mp, numero_factura } = req.body;
+  const { id_acarreo, efectivo, mp, numero_factura } = req.body;
 
   if (!id_acarreo) {
     return res
@@ -35,18 +92,6 @@ export const crearCobro = async (req, res) => {
     return res.status(400).json({
       success: false,
       message: "Los importes deben ser números mayores o iguales a cero",
-    });
-  }
-
-  const estadiasNum =
-    estadias === undefined || estadias === null || estadias === ""
-      ? 0
-      : Number(estadias);
-
-  if (!Number.isInteger(estadiasNum) || estadiasNum < 0) {
-    return res.status(400).json({
-      success: false,
-      message: "Las estadías deben ser un número entero mayor o igual a cero",
     });
   }
 
@@ -101,7 +146,8 @@ export const crearCobro = async (req, res) => {
       });
     }
 
-    // El importe sale de la tarifa vigente: acarreo + estadía × estadías.
+    // El importe sale de la tarifa vigente y de las estadías por reloj:
+    // acarreo + estadía × estadías (cada 12 h desde el acarreo, tope 70).
     const tarifa = await Tarifa.findOne({
       where: { vigente: true },
       order: [["vigente_desde", "DESC"]],
@@ -115,6 +161,8 @@ export const crearCobro = async (req, res) => {
         message: "No hay una tarifa vigente configurada",
       });
     }
+
+    const estadiasNum = calcularEstadias(acarreo.fecha_acarreo);
 
     const totalNum = aImporte(
       Number(tarifa.acarreo) + Number(tarifa.estadia) * estadiasNum,
