@@ -11,6 +11,7 @@ import {
   getAcarreos,
   getAcarreosPorPatente,
   ingresarAcarreoAPlaya,
+  sacarSinCargo,
 } from "../controllers/acarreoController.js";
 
 const router = express.Router();
@@ -23,6 +24,8 @@ router
   .post("/", authMiddleware, grueroMiddleware, crearAcarreo)
   // Ingreso/egreso de playa a cargo de la barrera (playeros).
   .put("/:id/ingresar", authMiddleware, playaMiddleware, ingresarAcarreoAPlaya)
-  .put("/:id/egresar", authMiddleware, playaMiddleware, egresarAcarreo);
+  .put("/:id/egresar", authMiddleware, playaMiddleware, egresarAcarreo)
+  // Salida sin cargo: sólo el supervisor (o sistemas) puede autorizarla.
+  .put("/:id/sin-cargo", authMiddleware, supervisorMiddleware, sacarSinCargo);
 
 export default router;

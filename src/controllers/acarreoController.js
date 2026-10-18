@@ -339,3 +339,71 @@ export const egresarAcarreo = async (req, res) => {
       .json({ success: false, message: "Error en el servidor" });
   }
 };
+
+/**
+ * Salida sin cargo (supervisor): un acarreo INGRESADO sale de la playa sin
+ * abonar. Pasa a SIN_CARGO, se registra la fecha de egreso y el motivo queda
+ * guardado en las observaciones del acarreo (además de la auditoría).
+ */
+export const sacarSinCargo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { motivo } = req.body;
+
+    if (typeof motivo !== "string" || motivo.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "El motivo de la salida sin cargo es obligatorio",
+      });
+    }
+
+    const acarreo = await Acarreo.findByPk(id);
+
+    if (!acarreo) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Acarreo no encontrado" });
+    }
+
+    if (acarreo.estado !== "INGRESADO") {
+      return res.status(409).json({
+        success: false,
+        message:
+          "El vehículo no está en la playa (ingresado), no se puede dar salida sin cargo",
+      });
+    }
+
+    const detalle = `Salida sin cargo (${new Date().toISOString()}): ${motivo.trim()}`;
+    const observaciones = acarreo.observaciones
+      ? `${acarreo.observaciones}\n${detalle}`
+      : detalle;
+
+    await acarreo.update({
+      estado: "SIN_CARGO",
+      fecha_egreso: new Date(),
+      observaciones,
+    });
+
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "SALIDA_SIN_CARGO",
+      entidad: "ACARREO",
+      idEntidad: acarreo.id,
+      descripcion: detalle,
+      antes: { estado: "INGRESADO" },
+      despues: { estado: "SIN_CARGO", motivo: motivo.trim() },
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: acarreo,
+      message: "Vehículo egresado sin cargo exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
