@@ -227,3 +227,115 @@ export const getAcarreos = async (req, res) => {
       .json({ success: false, message: "Error en el servidor" });
   }
 };
+
+// Turno de barrera activo en el que está asignado el usuario (o null si no
+// tiene ninguno). Lo usa el ingreso a playa para registrar por qué barrera
+// entró el vehículo.
+const obtenerTurnoBarreraActivo = async (idUsuario) => {
+  const asignacion = await Turno_Barrera_Usuario.findOne({
+    where: { id_usuario: idUsuario },
+    include: [{ model: Turno_Barrera, where: { activo: true }, required: true }],
+  });
+
+  return asignacion?.turno_barrera ?? null;
+};
+
+/**
+ * Ingreso a playa (barrera): un acarreo ACARREADO pasa a INGRESADO, se registra
+ * la fecha de ingreso y el turno de barrera activo del playero.
+ */
+export const ingresarAcarreoAPlaya = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const acarreo = await Acarreo.findByPk(id);
+
+    if (!acarreo) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Acarreo no encontrado" });
+    }
+
+    if (acarreo.estado !== "ACARREADO") {
+      return res.status(409).json({
+        success: false,
+        message: "El vehículo no está pendiente de ingreso a la playa",
+      });
+    }
+
+    const turnoBarrera = await obtenerTurnoBarreraActivo(req.user.id);
+
+    await acarreo.update({
+      estado: "INGRESADO",
+      fecha_ingreso: new Date(),
+      ...(turnoBarrera ? { id_turno_barrera: turnoBarrera.id } : {}),
+    });
+
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "INGRESAR_A_PLAYA",
+      entidad: "ACARREO",
+      idEntidad: acarreo.id,
+      descripcion: `Se ingresó a playa el acarreo ${acarreo.id}`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: acarreo,
+      message: "Vehículo ingresado a la playa exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+/**
+ * Egreso de playa (barrera): un acarreo COBRADO (ya abonado) pasa a EGRESADO y
+ * se registra la fecha de egreso.
+ */
+export const egresarAcarreo = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const acarreo = await Acarreo.findByPk(id);
+
+    if (!acarreo) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Acarreo no encontrado" });
+    }
+
+    if (acarreo.estado !== "COBRADO") {
+      return res.status(409).json({
+        success: false,
+        message: "El vehículo no está abonado, no se puede dar salida",
+      });
+    }
+
+    await acarreo.update({ estado: "EGRESADO", fecha_egreso: new Date() });
+
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "EGRESAR_DE_PLAYA",
+      entidad: "ACARREO",
+      idEntidad: acarreo.id,
+      descripcion: `Se dio salida al acarreo ${acarreo.id}`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: acarreo,
+      message: "Vehículo egresado de la playa exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};

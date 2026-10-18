@@ -12,12 +12,14 @@ import {
   finalizarTurnoBarrera,
   agregarIncidenciasBarrera,
   finalizarTodosTurnosBarrera,
+  obtenerMiTurnoBarrera,
 } from "../controllers/turno_barreraController.js";
 
 const router = express.Router();
 
 router
   .get("/", authMiddleware, obtenerBarreras)
+  .get("/mi-turno", authMiddleware, obtenerMiTurnoBarrera)
   .get("/sucursal/:id", authMiddleware, supervisorMiddleware, obtenerBarrerasSucursal)
   .post("/", authMiddleware, sistemasMiddleware, crearBarrera)
   .put("/:id", authMiddleware, sistemasMiddleware, editarBarrera)

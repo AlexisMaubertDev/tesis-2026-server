@@ -43,6 +43,42 @@ export const obtenerBarrerasSucursal = async (req, res) => {
   }
 };
 
+// Turno de barrera activo del usuario autenticado (lo usa el home del playero
+// para saber en qué barrera está). Devuelve `null` si no tiene ninguno.
+export const obtenerMiTurnoBarrera = async (req, res) => {
+  try {
+    const asignacion = await Turno_Barrera_Usuario.findOne({
+      where: { id_usuario: req.user.id },
+      include: [
+        {
+          model: Turno_Barrera,
+          required: true,
+          where: { activo: true },
+          include: [
+            {
+              model: Barrera,
+              include: [
+                { model: Sucursal, attributes: ["id", "nombre", "direccion"] },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: asignacion?.turno_barrera ?? null,
+      message: "Turno de barrera obtenido exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
 export const asignarBarrera = async (req, res) => {
   const { id_barrera, turno, id_usuarios, observaciones } = req.body;
   const id_supervisor = req.user.id;

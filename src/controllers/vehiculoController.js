@@ -60,6 +60,9 @@ export const obtenerVehiculos = async (req, res) => {
           color: json.color,
           cantidad_acarreos: acarreos.length,
           ultimo_acarreo: ultimo?.fecha_acarreo ?? null,
+          // Id del último acarreo: las acciones de la barrera (ingresar/egresar)
+          // operan sobre ese acarreo.
+          ultimo_acarreo_id: ultimo?.id ?? null,
           ultimo_acarreo_estado: estado,
           en_playa: ESTADOS_EN_PLAYA.includes(estado),
           Sucursal: sucursal
