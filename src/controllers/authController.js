@@ -9,7 +9,10 @@ dotenv.config();
 export const login = async (req, res) => {
   try {
     const { dni, password } = req.body;
-    const user = await Usuario.findOne({ where: { dni }, include: "Sucursal" });
+    const user = await Usuario.findOne({
+      where: { dni },
+      include: ["Sucursal", "turno_grua_chofer_activo", "turno_grua_enganchador_activo"],
+    });
 
     if (!user) {
       return res.status(404).json({
