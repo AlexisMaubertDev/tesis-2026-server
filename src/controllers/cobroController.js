@@ -1,5 +1,12 @@
 import sequelize from "../config/db.js";
-import { Acarreo, Cobro, Tarifa, Turno_Caja, Vehiculo } from "../models/index.js";
+import {
+  Acarreo,
+  Caja,
+  Cobro,
+  Tarifa,
+  Turno_Caja,
+  Vehiculo,
+} from "../models/index.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
 import {
   HORAS_POR_ESTADIA,
@@ -219,6 +226,64 @@ export const crearCobro = async (req, res) => {
   } catch (error) {
     // Si la transacción ya se cerró (commit), no se puede revertir.
     if (transaction && !transaction.finished) await transaction.rollback();
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+/**
+ * Cobros del turno de caja abierto del cajero (home del cajero).
+ *
+ * Devuelve el turno, los cobros del turno (con el acarreo y el vehículo de
+ * cada uno) y los totales calculados a partir de los cobros. Si el usuario no
+ * tiene un turno abierto, devuelve la lista vacía.
+ */
+export const obtenerCobrosDeMiTurno = async (req, res) => {
+  try {
+    const turnoCaja = await Turno_Caja.findOne({
+      where: { id_usuario: req.user.id, activo: true },
+      include: {
+        model: Caja,
+        attributes: ["id", "numero_caja", "referencia"],
+      },
+    });
+
+    if (!turnoCaja) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          turno_caja: null,
+          cobros: [],
+          totales: { cantidad: 0, total: 0, efectivo: 0, mp: 0 },
+        },
+        message: "No tenés un turno de caja abierto",
+      });
+    }
+
+    const cobros = await Cobro.findAll({
+      where: { id_turno_caja: turnoCaja.id },
+      order: [["fecha", "DESC"]],
+      include: [{ model: Acarreo, include: [{ model: Vehiculo }] }],
+    });
+
+    const totales = cobros.reduce(
+      (acc, cobro) => ({
+        cantidad: acc.cantidad + 1,
+        total: aImporte(acc.total + Number(cobro.total)),
+        efectivo: aImporte(acc.efectivo + Number(cobro.efectivo)),
+        mp: aImporte(acc.mp + Number(cobro.mp)),
+      }),
+      { cantidad: 0, total: 0, efectivo: 0, mp: 0 },
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: { turno_caja: turnoCaja, cobros, totales },
+      message: "Cobros del turno obtenidos exitosamente",
+    });
+  } catch (error) {
     console.error(error);
     return res
       .status(500)

@@ -11,7 +11,14 @@ export const login = async (req, res) => {
     const { dni, password } = req.body;
     const user = await Usuario.findOne({
       where: { dni },
-      include: ["Sucursal", "turno_grua_chofer_activo", "turno_grua_enganchador_activo"],
+      // El turno de caja abierto viaja en el login para que el cajero pueda
+      // cerrarlo y cobrar aunque haya vuelto a iniciar sesión.
+      include: [
+        "Sucursal",
+        "turno_grua_chofer_activo",
+        "turno_grua_enganchador_activo",
+        { association: "turno_caja_activo", include: ["Caja"] },
+      ],
     });
 
     if (!user) {
