@@ -198,6 +198,33 @@ export const obtenerTurnosCerrados = async (req, res) => {
   }
 };
 
+// GET /turno_caja/usuario/:id — todos los turnos de caja de un usuario (abiertos y cerrados).
+export const obtenerTurnosDeUsuario = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const turnos = await Turno_Caja.findAll({
+      where: { id_usuario: id },
+      order: [["apertura", "DESC"]],
+      include: [
+        { model: Caja, attributes: ["id", "numero_caja", "referencia"] },
+        { model: Usuario, attributes: ["id", "nombre", "apellido", "dni", "rol"] },
+      ],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: turnos,
+      message: "Turnos de caja del usuario obtenidos exitosamente",
+    });
+  } catch (err) {
+    console.log(err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
 /**
  * GET /turno_caja/:id/detalle — detalle de un turno de caja con sus cobros,
  * acarreos y vehículos.

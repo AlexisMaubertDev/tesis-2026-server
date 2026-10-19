@@ -13,6 +13,7 @@ import {
   obtenerTurnosPorFecha,
   obtenerTurnosCerrados,
   obtenerDetalleTurnoCaja,
+  obtenerTurnosDeUsuario,
 } from "../controllers/turno_cajaController.js";
 
 const router = express.Router();
@@ -30,6 +31,12 @@ router
     supervisorMiddleware,
     obtenerTurnoCajasAbiertas,
   ) //Turnos abiertos del usuario autenticado
+  .get(
+    "/usuario/:id",
+    authMiddleware,
+    cajeroMiddleware,
+    obtenerTurnosDeUsuario,
+  ) //Todos los turnos de caja de un usuario
   .get(
     "/cerrados",
     authMiddleware,
