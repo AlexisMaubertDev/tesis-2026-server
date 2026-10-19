@@ -3,6 +3,7 @@ import { authMiddleware } from "../middlewares/authMiddleware.js";
 import {
   cajeroMiddleware,
   supervisorMiddleware,
+  sistemasMiddleware,
 } from "../middlewares/rolMiddleware.js";
 import {
   cerrarTurnoCaja,
@@ -10,6 +11,8 @@ import {
   obtenerTurnoCajasAbiertas,
   obtenerTurnosDeCaja,
   obtenerTurnosPorFecha,
+  obtenerTurnosCerrados,
+  obtenerDetalleTurnoCaja,
 } from "../controllers/turno_cajaController.js";
 
 const router = express.Router();
@@ -27,6 +30,18 @@ router
     supervisorMiddleware,
     obtenerTurnoCajasAbiertas,
   ) //Turnos abiertos del usuario autenticado
+  .get(
+    "/cerrados",
+    authMiddleware,
+    cajeroMiddleware,
+    obtenerTurnosCerrados,
+  ) //Todos los turnos de caja cerrados
+  .get(
+    "/:id/detalle",
+    authMiddleware,
+    cajeroMiddleware,
+    obtenerDetalleTurnoCaja,
+  ) //Detalle de un turno de caja
   .get(
     "/:apertura",
     authMiddleware,

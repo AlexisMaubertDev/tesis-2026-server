@@ -1,6 +1,13 @@
 import { Op } from "sequelize";
 import sequelize from "../config/db.js";
-import { Caja, Turno_Caja } from "../models/index.js";
+import {
+  Caja,
+  Cobro,
+  Turno_Caja,
+  Usuario,
+  Acarreo,
+  Vehiculo,
+} from "../models/index.js";
 import { crearEntidad } from "../utils/crearEntidad.js";
 import { editarEntidad } from "../utils/editarEntidad.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
@@ -147,12 +154,96 @@ export const obtenerTurnosDeCaja = async (req, res) => {
     const turnos = await Turno_Caja.findAll({
       where: { id_caja: id },
       order: [["apertura", "DESC"]],
+      include: [
+        { model: Caja, attributes: ["id", "numero_caja", "referencia"] },
+        { model: Usuario, attributes: ["id", "nombre", "apellido", "dni", "rol"] },
+      ],
     });
 
     return res.status(200).json({
       success: true,
       data: turnos,
       message: "Turnos de la caja obtenidos exitosamente",
+    });
+  } catch (err) {
+    console.log(err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+// GET /turno_caja/cerrados — todos los turnos de caja cerrados.
+export const obtenerTurnosCerrados = async (req, res) => {
+  try {
+    const turnos = await Turno_Caja.findAll({
+      where: { activo: false },
+      order: [["apertura", "DESC"]],
+      include: [
+        { model: Caja, attributes: ["id", "numero_caja", "referencia"] },
+        { model: Usuario, attributes: ["id", "nombre", "apellido", "dni", "rol"] },
+      ],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: turnos,
+      message: "Turnos de caja cerrados obtenidos exitosamente",
+    });
+  } catch (err) {
+    console.log(err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+/**
+ * GET /turno_caja/:id/detalle — detalle de un turno de caja con sus cobros,
+ * acarreos y vehículos.
+ */
+export const obtenerDetalleTurnoCaja = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const turno = await Turno_Caja.findByPk(id, {
+      include: [
+        { model: Caja, attributes: ["id", "numero_caja", "referencia"] },
+        { model: Usuario, attributes: ["id", "nombre", "apellido", "dni", "rol"] },
+      ],
+    });
+
+    if (!turno) {
+      return res.status(404).json({
+        success: false,
+        message: "Turno de caja no encontrado",
+      });
+    }
+
+    const cobros = await Cobro.findAll({
+      where: { id_turno_caja: id },
+      order: [["fecha", "ASC"]],
+      include: [{ model: Acarreo, include: [{ model: Vehiculo }] }],
+    });
+
+    const totales = cobros.reduce(
+      (acc, cobro) => ({
+        cantidad: acc.cantidad + 1,
+        total: acc.total + Number(cobro.total || 0),
+        efectivo: acc.efectivo + Number(cobro.efectivo || 0),
+        mp: acc.mp + Number(cobro.mp || 0),
+      }),
+      { cantidad: 0, total: 0, efectivo: 0, mp: 0 },
+    );
+
+    totales.total = Math.round(totales.total * 100) / 100;
+    totales.efectivo = Math.round(totales.efectivo * 100) / 100;
+    totales.mp = Math.round(totales.mp * 100) / 100;
+
+    return res.status(200).json({
+      success: true,
+      data: { turno, cobros, totales },
+      message: "Detalle del turno obtenido exitosamente",
     });
   } catch (err) {
     console.log(err);
