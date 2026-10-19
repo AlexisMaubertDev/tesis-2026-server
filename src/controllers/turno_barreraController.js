@@ -30,6 +30,56 @@ const usuariosAsignadosDelTurno = (extra = {}) => ({
   ...extra,
 });
 
+/**
+ * Agrega a cada turno sus "movimientos": cuántos vehículos entraron y cuántos
+ * salieron por esa barrera dentro de la ventana del turno (inicio → fin o
+ * ahora). Se cuenta sobre todos los acarreos de la barrera, no sólo los que
+ * ingresaron en ese turno, porque un auto puede haber entrado antes y salir
+ * durante este turno.
+ */
+const conMovimientos = async (turnos) => {
+  const barreraIds = [...new Set(turnos.map((t) => t.id_barrera))];
+
+  const turnosDeLasBarreras = await Turno_Barrera.findAll({
+    where: { id_barrera: barreraIds },
+    attributes: ["id", "id_barrera"],
+    include: [
+      { model: Acarreo, attributes: ["id", "fecha_ingreso", "fecha_egreso"] },
+    ],
+  });
+
+  // Acarreos de cada barrera (de todos sus turnos).
+  const acarreosPorBarrera = new Map();
+  turnosDeLasBarreras.forEach((tb) => {
+    const plain = tb.get({ plain: true });
+    const lista = acarreosPorBarrera.get(plain.id_barrera) ?? [];
+    lista.push(...(plain.Acarreos ?? []));
+    acarreosPorBarrera.set(plain.id_barrera, lista);
+  });
+
+  return turnos.map((turno) => {
+    const plain = turno.get({ plain: true });
+    const inicio = new Date(plain.fecha_inicio).getTime();
+    const fin = plain.fecha_fin
+      ? new Date(plain.fecha_fin).getTime()
+      : Date.now();
+    const enVentana = (fecha) => {
+      if (!fecha) return false;
+      const t = new Date(fecha).getTime();
+      return t >= inicio && t <= fin;
+    };
+    const deLaBarrera = acarreosPorBarrera.get(plain.id_barrera) ?? [];
+
+    return {
+      ...plain,
+      movimientos: {
+        entradas: deLaBarrera.filter((a) => enVentana(a.fecha_ingreso)).length,
+        salidas: deLaBarrera.filter((a) => enVentana(a.fecha_egreso)).length,
+      },
+    };
+  });
+};
+
 export const obtenerBarrerasSucursal = async (req, res) => {
   try {
     const { id } = req.params;
@@ -295,13 +345,13 @@ export const obtenerTurnosBarrera = async (req, res) => {
       include: [
         barreraDelTurno,
         usuariosAsignadosDelTurno(),
-        { model: Acarreo, attributes: ["id"] },
+        { model: Acarreo, attributes: ["id", "fecha_egreso"] },
       ],
     });
 
     return res.status(200).json({
       success: true,
-      data: turnos,
+      data: await conMovimientos(turnos),
       message: "Turnos de barrera obtenidos exitosamente",
     });
   } catch (error) {
@@ -323,13 +373,13 @@ export const obtenerTurnosBarreraDeUsuario = async (req, res) => {
       include: [
         barreraDelTurno,
         usuariosAsignadosDelTurno({ where: { id_usuario: id }, required: true }),
-        { model: Acarreo, attributes: ["id"] },
+        { model: Acarreo, attributes: ["id", "fecha_egreso"] },
       ],
     });
 
     return res.status(200).json({
       success: true,
-      data: turnos,
+      data: await conMovimientos(turnos),
       message: "Turnos de barrera del usuario obtenidos exitosamente",
     });
   } catch (error) {
@@ -360,7 +410,8 @@ export const obtenerDetalleTurnoBarrera = async (req, res) => {
       });
     }
 
-    // Acarreos que ingresaron a la playa en este turno.
+    // Acarreos que ingresaron a la playa en este turno (sirven para el estado
+    // actual de los vehículos del turno).
     const acarreos = await Acarreo.findAll({
       where: { id_turno_barrera: id },
       order: [["fecha_acarreo", "ASC"]],
@@ -372,11 +423,45 @@ export const obtenerDetalleTurnoBarrera = async (req, res) => {
     const fin = turno.fecha_fin
       ? new Date(turno.fecha_fin).getTime()
       : Date.now();
-    const egresoEnTurno = (fecha) => {
+    const enVentana = (fecha) => {
       if (!fecha) return false;
       const t = new Date(fecha).getTime();
       return t >= inicio && t <= fin;
     };
+
+    // Movimientos de la barrera durante la ventana del turno: una entrada por
+    // cada vehículo que ingresó y una salida por cada uno que egresó (aunque
+    // haya entrado en un turno anterior).
+    const turnosDeLaBarrera = await Turno_Barrera.findAll({
+      where: { id_barrera: turno.id_barrera },
+      attributes: ["id"],
+    });
+
+    const acarreosDeLaBarrera = await Acarreo.findAll({
+      where: {
+        id_turno_barrera: { [Op.in]: turnosDeLaBarrera.map((t) => t.id) },
+      },
+      include: [{ model: Vehiculo }],
+    });
+
+    const movimientos = [
+      ...acarreosDeLaBarrera
+        .filter((a) => enVentana(a.fecha_ingreso))
+        .map((a) => ({
+          id: `${a.id}-entrada`,
+          tipo: "ENTRADA",
+          fecha: a.fecha_ingreso,
+          acarreo: a,
+        })),
+      ...acarreosDeLaBarrera
+        .filter((a) => enVentana(a.fecha_egreso))
+        .map((a) => ({
+          id: `${a.id}-salida`,
+          tipo: "SALIDA",
+          fecha: a.fecha_egreso,
+          acarreo: a,
+        })),
+    ].sort((x, y) => new Date(x.fecha).getTime() - new Date(y.fecha).getTime());
 
     const porEstado = acarreos.reduce(
       (acc, acarreo) => ({
@@ -389,14 +474,16 @@ export const obtenerDetalleTurnoBarrera = async (req, res) => {
     );
 
     const totales = {
-      ingresos: acarreos.length,
-      egresos: acarreos.filter((a) => egresoEnTurno(a.fecha_egreso)).length,
+      ingresos: movimientos.filter((m) => m.tipo === "ENTRADA").length,
+      egresos: movimientos.filter((m) => m.tipo === "SALIDA").length,
+      // Autos que hoy siguen en la playa (estado INGRESADO).
+      enPlaya: porEstado.ingresados,
       porEstado,
     };
 
     return res.status(200).json({
       success: true,
-      data: { turno, acarreos, totales },
+      data: { turno, acarreos, movimientos, totales },
       message: "Detalle del turno de barrera obtenido exitosamente",
     });
   } catch (error) {
@@ -419,13 +506,13 @@ export const obtenerTurnosBarreraDeBarrera = async (req, res) => {
       include: [
         barreraDelTurno,
         usuariosAsignadosDelTurno(),
-        { model: Acarreo, attributes: ["id"] },
+        { model: Acarreo, attributes: ["id", "fecha_egreso"] },
       ],
     });
 
     return res.status(200).json({
       success: true,
-      data: turnos,
+      data: await conMovimientos(turnos),
       message: "Turnos de la barrera obtenidos exitosamente",
     });
   } catch (error) {

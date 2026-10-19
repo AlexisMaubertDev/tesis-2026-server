@@ -6,6 +6,7 @@ import {
   supervisorMiddleware,
 } from "../middlewares/rolMiddleware.js";
 import {
+  agregarIncidenciaAcarreo,
   crearAcarreo,
   egresarAcarreo,
   getAcarreos,
@@ -26,6 +27,13 @@ router
   .put("/:id/ingresar", authMiddleware, playaMiddleware, ingresarAcarreoAPlaya)
   .put("/:id/egresar", authMiddleware, playaMiddleware, egresarAcarreo)
   // Salida sin cargo: sólo el supervisor (o sistemas) puede autorizarla.
-  .put("/:id/sin-cargo", authMiddleware, supervisorMiddleware, sacarSinCargo);
+  .put("/:id/sin-cargo", authMiddleware, supervisorMiddleware, sacarSinCargo)
+  // Incidencia sobre el acarreo (el vehículo): sólo supervisor (o sistemas).
+  .put(
+    "/:id/incidencias",
+    authMiddleware,
+    supervisorMiddleware,
+    agregarIncidenciaAcarreo,
+  );
 
 export default router;

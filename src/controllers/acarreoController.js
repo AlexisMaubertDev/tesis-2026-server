@@ -407,3 +407,58 @@ export const sacarSinCargo = async (req, res) => {
       .json({ success: false, message: "Error en el servidor" });
   }
 };
+
+/**
+ * PUT /acarreos/:id/incidencias — agrega una incidencia al acarreo (el
+ * vehículo). Sólo la puede agregar un supervisor (o sistemas).
+ */
+export const agregarIncidenciaAcarreo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { incidencias } = req.body;
+
+    if (typeof incidencias !== "string" || incidencias.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "La incidencia es obligatoria",
+      });
+    }
+
+    const acarreo = await Acarreo.findByPk(id);
+
+    if (!acarreo) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Acarreo no encontrado" });
+    }
+
+    const incidenciasPrevias = acarreo.incidencias;
+    const nuevas = incidenciasPrevias
+      ? `${incidenciasPrevias}\n${incidencias.trim()}`
+      : incidencias.trim();
+
+    await acarreo.update({ incidencias: nuevas });
+
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "AGREGAR_INCIDENCIA_ACARREO",
+      entidad: "ACARREO",
+      idEntidad: acarreo.id,
+      descripcion: `Se agregó una incidencia al acarreo ${acarreo.id}`,
+      antes: { incidencias: incidenciasPrevias ?? null },
+      despues: { incidencia: incidencias.trim() },
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: acarreo,
+      message: "Incidencia agregada exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
