@@ -157,6 +157,7 @@ export const obtenerTurnosDeCaja = async (req, res) => {
       include: [
         { model: Caja, attributes: ["id", "numero_caja", "referencia"] },
         { model: Usuario, attributes: ["id", "nombre", "apellido", "dni", "rol"] },
+        { model: Cobro, attributes: ["id"] },
       ],
     });
 

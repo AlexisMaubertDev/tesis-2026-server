@@ -7,11 +7,34 @@ import {
   finalizarTodosLosTurnosGruasPorSucursal,
   agregarIncidencia,
   finalizarTurno,
+  obtenerTurnosGrua,
+  obtenerTurnosGruaDeUsuario,
+  obtenerTurnosGruaDeGrua,
+  obtenerDetalleTurnoGrua,
 } from "../controllers/turno_gruaController.js";
 
 const router = express.Router();
 
 router
+  .get("/", authMiddleware, supervisorMiddleware, obtenerTurnosGrua) //Todos los turnos de grúa
+  .get(
+    "/usuario/:id",
+    authMiddleware,
+    supervisorMiddleware,
+    obtenerTurnosGruaDeUsuario,
+  ) //Turnos de grúa de un usuario
+  .get(
+    "/grua/:id",
+    authMiddleware,
+    supervisorMiddleware,
+    obtenerTurnosGruaDeGrua,
+  ) //Historial de turnos de una grúa
+  .get(
+    "/:id/detalle",
+    authMiddleware,
+    supervisorMiddleware,
+    obtenerDetalleTurnoGrua,
+  ) //Detalle de un turno de grúa
   .get(
     "/sucursal/:id",
     authMiddleware,

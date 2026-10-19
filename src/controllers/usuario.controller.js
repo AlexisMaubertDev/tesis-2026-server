@@ -8,8 +8,10 @@ import { registrarAuditoria } from "../utils/auditoria.js";
 export const obtenerUsuarios = async (req, res) => {
   try {
     const usuarios = await Usuario.findAll({
+      // El `id` se incluye porque los modales de "Turnos de caja" y "Turnos de
+      // grúa" de la tabla de usuarios lo necesitan para consultar sus turnos.
       attributes: {
-        exclude: ["password", "id_sucursal", "id"],
+        exclude: ["password", "id_sucursal"],
       },
       include: [
         { model: Sucursal, attributes: ["id", "nombre", "direccion"] },

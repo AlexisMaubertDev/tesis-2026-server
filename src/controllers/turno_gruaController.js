@@ -1,6 +1,20 @@
+import { Op } from "sequelize";
 import sequelize from "../config/db.js";
-import { Grua, Turno_Grua, Usuario } from "../models/index.js";
+import { Acarreo, Grua, Sucursal, Turno_Grua, Usuario, Vehiculo } from "../models/index.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
+
+/** Include de los usuarios que participan de un turno de grúa. */
+const usuariosDelTurno = [
+  { model: Usuario, as: "chofer", attributes: ["id", "nombre", "apellido", "legajo", "dni"] },
+  { model: Usuario, as: "enganchador", attributes: ["id", "nombre", "apellido", "legajo", "dni"] },
+  { model: Usuario, as: "supervisor", attributes: ["id", "nombre", "apellido", "legajo", "dni"] },
+];
+
+/** Grúa del turno con su sucursal. */
+const gruaDelTurno = {
+  model: Grua,
+  include: [{ model: Sucursal, attributes: ["id", "nombre"] }],
+};
 
 // export const asignarGrua = async (req, res) => {
 //   const {
@@ -359,5 +373,125 @@ export const finalizarTurno = async (req, res) => {
     if (transaction) await transaction.rollback();
     console.error(error);
     return res.status(500).json({ error: "Error en el servidor" });
+  }
+};
+
+// GET /turno_grua — todos los turnos de grúa (con grúa, chofer, enganchador,
+// supervisor y la cantidad de acarreos de cada uno).
+export const obtenerTurnosGrua = async (req, res) => {
+  try {
+    const turnos = await Turno_Grua.findAll({
+      order: [["fecha_inicio", "DESC"]],
+      include: [gruaDelTurno, ...usuariosDelTurno, { model: Acarreo, attributes: ["id"] }],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: turnos,
+      message: "Turnos de grúa obtenidos exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+// GET /turno_grua/usuario/:id — turnos de grúa de un usuario (chofer o enganchador).
+export const obtenerTurnosGruaDeUsuario = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const turnos = await Turno_Grua.findAll({
+      where: { [Op.or]: [{ id_chofer: id }, { id_enganchador: id }] },
+      order: [["fecha_inicio", "DESC"]],
+      include: [gruaDelTurno, ...usuariosDelTurno, { model: Acarreo, attributes: ["id"] }],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: turnos,
+      message: "Turnos de grúa del usuario obtenidos exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+/**
+ * GET /turno_grua/:id/detalle — detalle de un turno de grúa con sus usuarios,
+ * su grúa y los acarreos que hizo (con el vehículo de cada uno).
+ */
+export const obtenerDetalleTurnoGrua = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const turno = await Turno_Grua.findByPk(id, {
+      include: [gruaDelTurno, ...usuariosDelTurno],
+    });
+
+    if (!turno) {
+      return res.status(404).json({
+        success: false,
+        message: "Turno de grúa no encontrado",
+      });
+    }
+
+    const acarreos = await Acarreo.findAll({
+      where: { id_turno_grua: id },
+      order: [["fecha_acarreo", "ASC"]],
+      include: [{ model: Vehiculo }],
+    });
+
+    const totales = acarreos.reduce(
+      (acc, acarreo) => ({
+        cantidad: acc.cantidad + 1,
+        ingresados: acc.ingresados + (acarreo.estado === "INGRESADO" ? 1 : 0),
+        cobrados: acc.cobrados + (acarreo.estado === "COBRADO" ? 1 : 0),
+        egresados: acc.egresados + (acarreo.estado === "EGRESADO" ? 1 : 0),
+        sinCargo: acc.sinCargo + (acarreo.estado === "SIN_CARGO" ? 1 : 0),
+      }),
+      { cantidad: 0, ingresados: 0, cobrados: 0, egresados: 0, sinCargo: 0 },
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: { turno, acarreos, totales },
+      message: "Detalle del turno de grúa obtenido exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+// GET /turno_grua/grua/:id — todos los turnos de una grúa (historial) con sus
+// usuarios y acarreos.
+export const obtenerTurnosGruaDeGrua = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const turnos = await Turno_Grua.findAll({
+      where: { id_grua: id },
+      order: [["fecha_inicio", "DESC"]],
+      include: [gruaDelTurno, ...usuariosDelTurno, { model: Acarreo, attributes: ["id"] }],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: turnos,
+      message: "Turnos de la grúa obtenidos exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
   }
 };

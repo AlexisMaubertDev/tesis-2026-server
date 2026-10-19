@@ -13,6 +13,10 @@ import {
   agregarIncidenciasBarrera,
   finalizarTodosTurnosBarrera,
   obtenerMiTurnoBarrera,
+  obtenerTurnosBarrera,
+  obtenerTurnosBarreraDeUsuario,
+  obtenerTurnosBarreraDeBarrera,
+  obtenerDetalleTurnoBarrera,
 } from "../controllers/turno_barreraController.js";
 
 const router = express.Router();
@@ -20,6 +24,30 @@ const router = express.Router();
 router
   .get("/", authMiddleware, obtenerBarreras)
   .get("/mi-turno", authMiddleware, obtenerMiTurnoBarrera)
+  .get(
+    "/turnos",
+    authMiddleware,
+    supervisorMiddleware,
+    obtenerTurnosBarrera,
+  ) //Todos los turnos de barrera
+  .get(
+    "/turnos/usuario/:id",
+    authMiddleware,
+    supervisorMiddleware,
+    obtenerTurnosBarreraDeUsuario,
+  ) //Turnos de barrera de un playero
+  .get(
+    "/turnos/barrera/:id",
+    authMiddleware,
+    supervisorMiddleware,
+    obtenerTurnosBarreraDeBarrera,
+  ) //Historial de turnos de una barrera
+  .get(
+    "/turnos/:id/detalle",
+    authMiddleware,
+    supervisorMiddleware,
+    obtenerDetalleTurnoBarrera,
+  ) //Detalle de un turno de barrera
   .get("/sucursal/:id", authMiddleware, supervisorMiddleware, obtenerBarrerasSucursal)
   .post("/", authMiddleware, sistemasMiddleware, crearBarrera)
   .put("/:id", authMiddleware, sistemasMiddleware, editarBarrera)

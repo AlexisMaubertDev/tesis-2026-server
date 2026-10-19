@@ -1,7 +1,34 @@
 import sequelize from "../config/db.js";
-import { Barrera, Sucursal, Turno_Barrera, Turno_Barrera_Usuario, Usuario } from "../models/index.js";
+import {
+  Acarreo,
+  Barrera,
+  Sucursal,
+  Turno_Barrera,
+  Turno_Barrera_Usuario,
+  Usuario,
+  Vehiculo,
+} from "../models/index.js";
 import { Op } from "sequelize";
 import { registrarAuditoria } from "../utils/auditoria.js";
+
+/** Barrera del turno con su sucursal. */
+const barreraDelTurno = {
+  model: Barrera,
+  include: [{ model: Sucursal, attributes: ["id", "nombre", "direccion"] }],
+};
+
+/** Playeros asignados al turno (tabla intermedia + usuario). */
+const usuariosAsignadosDelTurno = (extra = {}) => ({
+  model: Turno_Barrera_Usuario,
+  as: "usuarios_asignados",
+  include: [
+    {
+      model: Usuario,
+      attributes: ["id", "nombre", "apellido", "legajo", "rol", "numero_turno"],
+    },
+  ],
+  ...extra,
+});
 
 export const obtenerBarrerasSucursal = async (req, res) => {
   try {
@@ -256,5 +283,155 @@ export const finalizarTodosTurnosBarrera = async (req, res) => {
   } catch (error) {
     console.error(error);
     return res.status(500).json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+// GET /barreras/turnos — todos los turnos de barrera (historial), con su
+// barrera, los playeros asignados y la cantidad de acarreos del turno.
+export const obtenerTurnosBarrera = async (req, res) => {
+  try {
+    const turnos = await Turno_Barrera.findAll({
+      order: [["fecha_inicio", "DESC"]],
+      include: [
+        barreraDelTurno,
+        usuariosAsignadosDelTurno(),
+        { model: Acarreo, attributes: ["id"] },
+      ],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: turnos,
+      message: "Turnos de barrera obtenidos exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+// GET /barreras/turnos/usuario/:id — turnos de barrera en los que un playero
+// estuvo asignado.
+export const obtenerTurnosBarreraDeUsuario = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const turnos = await Turno_Barrera.findAll({
+      order: [["fecha_inicio", "DESC"]],
+      include: [
+        barreraDelTurno,
+        usuariosAsignadosDelTurno({ where: { id_usuario: id }, required: true }),
+        { model: Acarreo, attributes: ["id"] },
+      ],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: turnos,
+      message: "Turnos de barrera del usuario obtenidos exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+/**
+ * GET /barreras/turnos/:id/detalle — detalle de un turno de barrera: la
+ * barrera, los playeros asignados, las fechas y el resumen de ingresos/egresos
+ * con los acarreos ingresados a la playa durante el turno.
+ */
+export const obtenerDetalleTurnoBarrera = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const turno = await Turno_Barrera.findByPk(id, {
+      include: [barreraDelTurno, usuariosAsignadosDelTurno()],
+    });
+
+    if (!turno) {
+      return res.status(404).json({
+        success: false,
+        message: "Turno de barrera no encontrado",
+      });
+    }
+
+    // Acarreos que ingresaron a la playa en este turno.
+    const acarreos = await Acarreo.findAll({
+      where: { id_turno_barrera: id },
+      order: [["fecha_acarreo", "ASC"]],
+      include: [{ model: Vehiculo }],
+    });
+
+    // Un egreso cuenta para el turno si ocurrió dentro de su ventana.
+    const inicio = new Date(turno.fecha_inicio).getTime();
+    const fin = turno.fecha_fin
+      ? new Date(turno.fecha_fin).getTime()
+      : Date.now();
+    const egresoEnTurno = (fecha) => {
+      if (!fecha) return false;
+      const t = new Date(fecha).getTime();
+      return t >= inicio && t <= fin;
+    };
+
+    const porEstado = acarreos.reduce(
+      (acc, acarreo) => ({
+        ingresados: acc.ingresados + (acarreo.estado === "INGRESADO" ? 1 : 0),
+        cobrados: acc.cobrados + (acarreo.estado === "COBRADO" ? 1 : 0),
+        egresados: acc.egresados + (acarreo.estado === "EGRESADO" ? 1 : 0),
+        sinCargo: acc.sinCargo + (acarreo.estado === "SIN_CARGO" ? 1 : 0),
+      }),
+      { ingresados: 0, cobrados: 0, egresados: 0, sinCargo: 0 },
+    );
+
+    const totales = {
+      ingresos: acarreos.length,
+      egresos: acarreos.filter((a) => egresoEnTurno(a.fecha_egreso)).length,
+      porEstado,
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: { turno, acarreos, totales },
+      message: "Detalle del turno de barrera obtenido exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+// GET /barreras/turnos/barrera/:id — todos los turnos de una barrera
+// (historial) con sus playeros y acarreos.
+export const obtenerTurnosBarreraDeBarrera = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const turnos = await Turno_Barrera.findAll({
+      where: { id_barrera: id },
+      order: [["fecha_inicio", "DESC"]],
+      include: [
+        barreraDelTurno,
+        usuariosAsignadosDelTurno(),
+        { model: Acarreo, attributes: ["id"] },
+      ],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: turnos,
+      message: "Turnos de la barrera obtenidos exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
   }
 };
