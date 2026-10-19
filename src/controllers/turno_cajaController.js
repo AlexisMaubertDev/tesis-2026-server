@@ -313,3 +313,57 @@ export const obtenerTurnosPorFecha = async (req, res) => {
       .json({ success: false, message: "Error en el servidor" });
   }
 };
+
+/**
+ * PUT /turno_caja/:id/incidencias — agrega una incidencia al turno de caja,
+ * acumulándola al final del campo `incidencias`. Sólo supervisor (o sistemas).
+ */
+export const agregarIncidenciaTurnoCaja = async (req, res) => {
+  const { id } = req.params;
+  const { incidencias } = req.body;
+
+  if (!incidencias || !incidencias.trim()) {
+    return res
+      .status(400)
+      .json({ success: false, message: "La incidencia no puede estar vacía" });
+  }
+
+  try {
+    const turno = await Turno_Caja.findByPk(id);
+
+    if (!turno) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Turno de caja no encontrado" });
+    }
+
+    const incidenciasPrevias = turno.incidencias || "";
+    const nuevas = incidenciasPrevias
+      ? `${incidenciasPrevias}\n- ${incidencias.trim()}`
+      : `- ${incidencias.trim()}`;
+
+    await turno.update({ incidencias: nuevas });
+
+    await registrarAuditoria({
+      usuario: req.user,
+      entidad: "TURNO_CAJA",
+      idEntidad: turno.id,
+      accion: "AGREGAR_INCIDENCIA_TURNO_CAJA",
+      descripcion: `Se agregó una incidencia al turno de caja ${turno.id}`,
+      antes: { incidencias: incidenciasPrevias || null },
+      despues: { incidencias: nuevas },
+      req,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: turno,
+      message: "Incidencia agregada exitosamente",
+    });
+  } catch (err) {
+    console.log(err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};

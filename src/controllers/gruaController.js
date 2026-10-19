@@ -256,3 +256,76 @@ export const asignarGrua = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+const ESTADOS_GRUA = [
+  "DISPONIBLE",
+  "EN_SERVICIO",
+  "FUERA_DE_SERVICIO",
+  "MANTENIMIENTO",
+];
+
+/**
+ * PUT /gruas/:id/estado — cambia el estado de una grúa. No se permite si la
+ * grúa tiene un turno activo (ese estado lo maneja el ciclo del turno).
+ */
+export const cambiarEstadoGrua = async (req, res) => {
+  const { id } = req.params;
+  const { estado, observaciones } = req.body;
+
+  if (!ESTADOS_GRUA.includes(estado)) {
+    return res.status(400).json({
+      success: false,
+      message: `Estado inválido. Debe ser uno de: ${ESTADOS_GRUA.join(", ")}`,
+    });
+  }
+
+  try {
+    const grua = await Grua.findByPk(id);
+
+    if (!grua) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Grúa no encontrada" });
+    }
+
+    const turnoActivo = await Turno_Grua.findOne({
+      where: { id_grua: id, activo: true },
+    });
+
+    if (turnoActivo) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "No se puede cambiar el estado de una grúa con un turno activo",
+      });
+    }
+
+    const estadoAnterior = grua.estado;
+
+    await grua.update({
+      estado,
+      observaciones:
+        observaciones !== undefined ? observaciones : grua.observaciones,
+    });
+
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      entidad: "GRUA",
+      idEntidad: grua.id,
+      accion: "CAMBIAR_ESTADO",
+      descripcion: `Se cambió el estado de la grúa ${grua.patente} de ${estadoAnterior} a ${estado}`,
+      antes: { estado: estadoAnterior },
+      despues: { estado },
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: grua,
+      message: "Estado de la grúa actualizado exitosamente",
+    });
+  } catch (error) {
+    console.error("Error al cambiar estado de grúa:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
