@@ -5,6 +5,7 @@ import {
   crearCobro,
   obtenerCobrosDeMiTurno,
   obtenerPreviewCobro,
+  generarComprobanteCobro,
 } from "../controllers/cobroController.js";
 
 const router = express.Router();
@@ -24,6 +25,9 @@ router.get(
   cajeroMiddleware,
   obtenerPreviewCobro,
 );
+
+// Comprobante PDF del cobro
+router.get("/:id/comprobante.pdf", authMiddleware, generarComprobanteCobro);
 
 // Registrar un cobro: sólo cajeros (o supervisor/sistemas).
 router.post("/", authMiddleware, cajeroMiddleware, crearCobro);
