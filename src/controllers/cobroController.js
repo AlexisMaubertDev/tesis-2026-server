@@ -32,6 +32,27 @@ const formatoFecha = (fecha) => {
   );
 };
 
+// Paleta de marca (misma que la web, ver src/styles/index.css).
+const COLOR = {
+  cerulean: "#41778b",
+  ceruleanOscuro: "#213c45",
+  ceruleanClaro: "#eef4f7",
+  ceruleanMedio: "#dceaef",
+  scarlet: "#d92632",
+  scarletOscuro: "#ad1f28",
+  sanMarino: "#39659e",
+  gris: "#5b6b70",
+  grisClaro: "#e8eef0",
+  blanco: "#ffffff",
+};
+
+// Formatea un importe como `$ 83.000,00` (separador de miles punto, decimales coma).
+const formatoImporte = (valor) =>
+  `$ ${Number(valor || 0).toLocaleString("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
 // Los importes se guardan con 2 decimales: redondear antes de comparar evita
 // falsos negativos por errores de punto flotante (0.1 + 0.2 !== 0.3).
 const aImporte = (valor) => Math.round(Number(valor) * 100) / 100;
@@ -310,6 +331,358 @@ export const obtenerCobrosDeMiTurno = async (req, res) => {
 };
 
 /**
+ * Construye el documento PDF del comprobante de un cobro (sin enviarlo). Se
+ * separa del controlador para poder reutilizarlo desde scripts de prueba.
+ * Devuelve el `PDFDocument` listo para `pipe()` (respuesta HTTP o archivo).
+ */
+export const construirComprobantePdf = (cobro) => {
+  const doc = new PDFDocument({
+    size: "A4",
+    margin: 0,
+    bufferPages: true,
+    info: {
+      Title: `Comprobante de cobro ${cobro.id}`,
+      Author: "Sistema de Gestión de Acarreos",
+    },
+  });
+
+  const vehiculo = cobro.Acarreo?.Vehiculo;
+  const turno = cobro.Turno_Caja;
+
+  const MARGEN = 50;
+  const ANCHO = doc.page.width; // 595.28 (A4)
+  const ANCHO_UTIL = ANCHO - MARGEN * 2;
+  const X = MARGEN;
+
+  // El número de comprobante coincide con el N° de factura del cobro; si el
+  // cobro no tiene factura cargada, se usa un identificador corto del cobro.
+  const numeroComprobante =
+    cobro.numero_factura?.trim() || `#${String(cobro.id).slice(0, 8).toUpperCase()}`;
+
+  // --------------------------------------------------------------------
+  // Encabezado: banda de color a todo el ancho con título y número.
+  // --------------------------------------------------------------------
+  const ALTO_ENCABEZADO = 116;
+  const ANCHO_BLOQUE_DERECHO = 185;
+  const X_BLOQUE_DERECHO = ANCHO - ANCHO_BLOQUE_DERECHO;
+  const ANCHO_TEXTO_DERECHO = ANCHO_BLOQUE_DERECHO - 24;
+
+  doc.rect(0, 0, ANCHO, ALTO_ENCABEZADO).fill(COLOR.cerulean);
+  // Franja de acento roja al pie del encabezado.
+  doc.rect(0, ALTO_ENCABEZADO, ANCHO, 5).fill(COLOR.scarlet);
+
+  // Bloque decorativo a la derecha (más oscuro) para el número.
+  doc
+    .rect(X_BLOQUE_DERECHO, 0, ANCHO_BLOQUE_DERECHO, ALTO_ENCABEZADO)
+    .fill(COLOR.ceruleanOscuro);
+
+  const ANCHO_TEXTO_IZQUIERDO = X_BLOQUE_DERECHO - X - 20;
+
+  doc
+    .fillColor(COLOR.blanco)
+    .font("Helvetica-Bold")
+    .fontSize(24)
+    .text("ParkControl", X, 30, { width: ANCHO_TEXTO_IZQUIERDO });
+
+  doc
+    .font("Helvetica")
+    .fontSize(13)
+    .text("Sistema de Gestión de Acarreos", X, 58, {
+      width: ANCHO_TEXTO_IZQUIERDO,
+      characterSpacing: 0.5,
+    });
+
+  doc
+    .fontSize(9)
+    .fillColor(COLOR.ceruleanMedio)
+    .text("comprobante de cobro", X, 84, {
+      width: ANCHO_TEXTO_IZQUIERDO,
+    });
+
+  // Columna derecha: número de comprobante y fecha de emisión. Si el número es
+  // largo (ej: "A-0001 / B-2015") se reduce la fuente para que entre en un
+  // renglón.
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(9)
+    .fillColor(COLOR.ceruleanMedio)
+    .text("COMPROBANTE N°", X_BLOQUE_DERECHO + 12, 30, {
+      width: ANCHO_TEXTO_DERECHO,
+      align: "right",
+    });
+
+  const tamanoNumero = numeroComprobante.length > 12 ? 13 : 18;
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(tamanoNumero)
+    .fillColor(COLOR.blanco)
+    .text(numeroComprobante, X_BLOQUE_DERECHO + 12, 44, {
+      width: ANCHO_TEXTO_DERECHO,
+      align: "right",
+    });
+
+  doc
+    .font("Helvetica")
+    .fontSize(8)
+    .fillColor(COLOR.ceruleanMedio)
+    .text("Emitido el", X_BLOQUE_DERECHO + 12, 72, {
+      width: ANCHO_TEXTO_DERECHO,
+      align: "right",
+    });
+
+  doc
+    .font("Helvetica")
+    .fontSize(9)
+    .fillColor(COLOR.blanco)
+    .text(formatoFecha(cobro.fecha), X_BLOQUE_DERECHO + 12, 84, {
+      width: ANCHO_TEXTO_DERECHO,
+      align: "right",
+    });
+
+  let y = ALTO_ENCABEZADO + 30;
+
+  // --------------------------------------------------------------------
+  // Helpers de dibujo
+  // --------------------------------------------------------------------
+
+  // Barra de título de sección (fondo de marca + texto blanco).
+  const tituloSeccion = (texto, yActual) => {
+    doc.rect(X, yActual, ANCHO_UTIL, 22).fill(COLOR.cerulean);
+    doc
+      .fillColor(COLOR.blanco)
+      .font("Helvetica-Bold")
+      .fontSize(10)
+      .text(texto.toUpperCase(), X + 10, yActual + 6, {
+        width: ANCHO_UTIL - 20,
+        characterSpacing: 0.6,
+      });
+    return yActual + 22;
+  };
+
+  // Tarjeta de filas etiqueta/valor; las filas pares llevan fondo claro.
+  const tarjetaDatos = (filas, yActual) => {
+    const ALTO_FILA = 20;
+    const anchoEtiqueta = 150;
+    let yFila = yActual;
+
+    filas.forEach((fila, indice) => {
+      if (indice % 2 === 0) {
+        doc.rect(X, yFila, ANCHO_UTIL, ALTO_FILA).fill(COLOR.ceruleanClaro);
+      }
+
+      doc
+        .fillColor(COLOR.gris)
+        .font("Helvetica")
+        .fontSize(9)
+        .text(fila.etiqueta, X + 12, yFila + 6, { width: anchoEtiqueta });
+
+      doc
+        .fillColor(COLOR.ceruleanOscuro)
+        .font("Helvetica-Bold")
+        .fontSize(9)
+        .text(fila.valor, X + 12 + anchoEtiqueta, yFila + 6, {
+          width: ANCHO_UTIL - anchoEtiqueta - 24,
+        });
+
+      yFila += ALTO_FILA;
+    });
+
+    doc
+      .rect(X, yActual, ANCHO_UTIL, yFila - yActual)
+      .lineWidth(0.5)
+      .strokeColor(COLOR.grisClaro)
+      .stroke();
+
+    return yFila;
+  };
+
+  const espacio = (alto) => {
+    y += alto;
+  };
+
+  // --------------------------------------------------------------------
+  // Sección: datos del cobro
+  // --------------------------------------------------------------------
+  y = tituloSeccion("Datos del cobro", y);
+  y = tarjetaDatos(
+    [
+      { etiqueta: "N° de comprobante", valor: numeroComprobante },
+      { etiqueta: "Fecha y hora del cobro", valor: formatoFecha(cobro.fecha) },
+      { etiqueta: "Estadías aplicadas", valor: String(cobro.estadias ?? "-") },
+    ],
+    y,
+  );
+
+  espacio(22);
+
+  // --------------------------------------------------------------------
+  // Sección: vehículo y acarreo
+  // --------------------------------------------------------------------
+  y = tituloSeccion("Vehículo y acarreo", y);
+  y = tarjetaDatos(
+    [
+      { etiqueta: "Patente", valor: vehiculo?.patente || "-" },
+      {
+        etiqueta: "Vehículo",
+        valor:
+          [vehiculo?.marca, vehiculo?.modelo, vehiculo?.color]
+            .filter(Boolean)
+            .join(" - ") || "-",
+      },
+      {
+        etiqueta: "Fecha y hora del acarreo",
+        valor: formatoFecha(cobro.Acarreo?.fecha_acarreo),
+      },
+      {
+        etiqueta: "Dirección del acarreo",
+        valor: cobro.Acarreo?.direccion || "-",
+      },
+      {
+        etiqueta: "Motivo del acarreo",
+        valor: cobro.Acarreo?.motivo || "-",
+      },
+    ],
+    y,
+  );
+
+  espacio(22);
+
+  // --------------------------------------------------------------------
+  // Sección: caja
+  // --------------------------------------------------------------------
+  y = tituloSeccion("Caja", y);
+  y = tarjetaDatos(
+    [
+      {
+        etiqueta: "Caja",
+        valor: turno?.Caja
+          ? `N° ${turno.Caja.numero_caja} · ${turno.Caja.referencia || "-"}`
+          : "-",
+      },
+    ],
+    y,
+  );
+
+  espacio(22);
+
+  // --------------------------------------------------------------------
+  // Sección: detalle de pago
+  // --------------------------------------------------------------------
+  y = tituloSeccion("Detalle de pago", y);
+
+  const ALTO_FILA_PAGO = 22;
+  const pagos = [
+    { etiqueta: "Efectivo", valor: formatoImporte(cobro.efectivo) },
+    { etiqueta: "Mercado Pago", valor: formatoImporte(cobro.mp) },
+  ];
+
+  pagos.forEach((pago, indice) => {
+    if (indice % 2 === 0) {
+      doc.rect(X, y, ANCHO_UTIL, ALTO_FILA_PAGO).fill(COLOR.ceruleanClaro);
+    }
+
+    doc
+      .fillColor(COLOR.gris)
+      .font("Helvetica")
+      .fontSize(10)
+      .text(pago.etiqueta, X + 12, y + 6, { width: ANCHO_UTIL - 24 });
+
+    doc
+      .fillColor(COLOR.ceruleanOscuro)
+      .font("Helvetica-Bold")
+      .fontSize(10)
+      .text(pago.valor, X, y + 6, { width: ANCHO_UTIL - 12, align: "right" });
+
+    y += ALTO_FILA_PAGO;
+  });
+
+  // Fila del total resaltada con el rojo de marca.
+  doc.rect(X, y, ANCHO_UTIL, 34).fill(COLOR.scarlet);
+  doc
+    .fillColor(COLOR.blanco)
+    .font("Helvetica-Bold")
+    .fontSize(13)
+    .text("TOTAL ABONADO", X + 12, y + 10, { width: ANCHO_UTIL - 24 });
+
+  doc
+    .fillColor(COLOR.blanco)
+    .font("Helvetica-Bold")
+    .fontSize(15)
+    .text(formatoImporte(cobro.total), X, y + 9, {
+      width: ANCHO_UTIL - 12,
+      align: "right",
+    });
+
+  y += 34;
+
+  // --------------------------------------------------------------------
+  // Pie de página
+  // --------------------------------------------------------------------
+  const dibujarPie = () => {
+    const yPie = doc.page.height - 72;
+
+    doc
+      .moveTo(MARGEN, yPie)
+      .lineTo(ANCHO - MARGEN, yPie)
+      .lineWidth(0.5)
+      .strokeColor(COLOR.grisClaro)
+      .stroke();
+
+    doc
+      .fillColor(COLOR.gris)
+      .font("Helvetica")
+      .fontSize(8)
+      .text(
+        "Este documento es un comprobante interno del sistema. No es válido como factura fiscal.",
+        MARGEN,
+        yPie + 8,
+        { width: ANCHO_UTIL, align: "center" },
+      );
+
+    doc
+      .fillColor(COLOR.cerulean)
+      .font("Helvetica-Bold")
+      .fontSize(8)
+      .text("Sistema de Gestión de Acarreos", MARGEN, yPie + 20, {
+        width: ANCHO_UTIL,
+        align: "center",
+      });
+
+    doc
+      .fillColor(COLOR.gris)
+      .font("Helvetica")
+      .fontSize(8)
+      .text("ParkControl", MARGEN, yPie + 32, {
+        width: ANCHO_UTIL,
+        align: "center",
+      });
+  };
+
+  dibujarPie();
+
+  // Numeración de páginas (bufferPages permite recorrerlas al final).
+  const rango = doc.bufferedPageRange();
+
+  for (let i = rango.start; i < rango.start + rango.count; i += 1) {
+    doc.switchToPage(i);
+
+    if (i > rango.start) dibujarPie();
+
+    doc
+      .fillColor(COLOR.gris)
+      .font("Helvetica")
+      .fontSize(8)
+      .text(`Página ${i + 1} de ${rango.count}`, MARGEN, doc.page.height - 30, {
+        width: ANCHO_UTIL,
+        align: "center",
+      });
+  }
+
+  return doc;
+};
+
+/**
  * Genera el comprobante en PDF del cobro registrado.
  * GET /cobros/:id/comprobante.pdf
  */
@@ -322,14 +695,20 @@ export const generarComprobanteCobro = async (req, res) => {
         {
           model: Turno_Caja,
           include: [
-            { model: Usuario, attributes: ["nombre", "apellido", "dni", "legajo"] },
+            {
+              model: Usuario,
+              attributes: ["nombre", "apellido", "dni", "legajo"],
+            },
             { model: Caja, attributes: ["numero_caja", "referencia"] },
           ],
         },
         {
           model: Acarreo,
           include: [
-            { model: Vehiculo, attributes: ["patente", "marca", "modelo", "color"] },
+            {
+              model: Vehiculo,
+              attributes: ["patente", "marca", "modelo", "color"],
+            },
           ],
         },
       ],
@@ -347,70 +726,9 @@ export const generarComprobanteCobro = async (req, res) => {
       `inline; filename="comprobante-cobro-${cobro.id}.pdf"`,
     );
 
-    const doc = new PDFDocument({ size: "A4", margin: 50 });
+    const doc = construirComprobantePdf(cobro);
+
     doc.pipe(res);
-
-    doc.fontSize(18).text("COMPROBANTE DE COBRO", { align: "center" });
-    doc.moveDown();
-    doc
-      .fontSize(10)
-      .text(`Fecha de emisión: ${formatoFecha(new Date())}`, {
-        align: "right",
-      });
-    doc.moveDown(1.5);
-
-    doc.fontSize(12).text("Datos del cobro", { underline: true });
-    doc.moveDown(0.5);
-    doc.fontSize(10);
-    doc.text(`N° Cobro: ${cobro.id}`);
-    doc.text(`Fecha cobro: ${formatoFecha(cobro.fecha)}`);
-    doc.text(`N° Factura: ${cobro.numero_factura || "-"}`);
-    doc.text(`Estadías: ${cobro.estadias ?? "-"}`);
-    doc.moveDown(1);
-
-    doc.fontSize(12).text("Datos del vehículo / acarreo", { underline: true });
-    doc.moveDown(0.5);
-    doc.fontSize(10);
-    const vehiculo = cobro.Acarreo?.Vehiculo;
-    doc.text(`Patente: ${vehiculo?.patente || "-"}`);
-    doc.text(
-      `Vehículo: ${
-        [vehiculo?.marca, vehiculo?.modelo, vehiculo?.color]
-          .filter(Boolean)
-          .join(" - ") || "-"
-      }`,
-    );
-    doc.text(`Fecha acarreo: ${formatoFecha(cobro.Acarreo?.fecha_acarreo)}`);
-    doc.moveDown(1);
-
-    doc.fontSize(12).text("Datos del turno / caja", { underline: true });
-    doc.moveDown(0.5);
-    doc.fontSize(10);
-    const turno = cobro.Turno_Caja;
-    doc.text(`Caja N°: ${turno?.Caja?.numero_caja || "-"}`);
-    doc.text(`Referencia: ${turno?.Caja?.referencia || "-"}`);
-    doc.text(
-      `Cajero: ${
-        turno?.Usuario ? `${turno.Usuario.nombre} ${turno.Usuario.apellido}` : "-"
-      }`,
-    );
-    doc.text(`DNI: ${turno?.Usuario?.dni || "-"}`);
-    doc.moveDown(1);
-
-    doc.fontSize(12).text("Detalle de pago", { underline: true });
-    doc.moveDown(0.5);
-    doc.fontSize(10);
-    doc.text(`Efectivo: $ ${Number(cobro.efectivo || 0).toFixed(2)}`);
-    doc.text(`Mercado Pago: $ ${Number(cobro.mp || 0).toFixed(2)}`);
-    doc.moveDown(0.5);
-    doc.fontSize(12).text(`TOTAL: $ ${Number(cobro.total || 0).toFixed(2)}`);
-    doc.moveDown(2);
-
-    doc
-      .fontSize(8)
-      .text("Este documento es un comprobante interno del sistema.", {
-        align: "center",
-      });
     doc.end();
   } catch (error) {
     console.error("Error al generar comprobante PDF:", error);
