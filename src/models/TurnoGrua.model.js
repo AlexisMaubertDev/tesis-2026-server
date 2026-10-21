@@ -53,10 +53,6 @@ const Turno_Grua = sequelize.define(
       type: DataTypes.STRING(20),
       allowNull: false,
     },
-    observaciones: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-    },
     incidencias: {
       type: DataTypes.TEXT,
       allowNull: true,

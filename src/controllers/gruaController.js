@@ -132,14 +132,8 @@ export const obtenerGruasSucursal = async (req, res) => {
 };
 
 export const asignarGrua = async (req, res) => {
-  const {
-    id_chofer,
-    id_enganchador,
-    turno,
-    observaciones,
-    nombre_agente,
-    numero_agente,
-  } = req.body;
+  const { id_chofer, id_enganchador, turno, nombre_agente, numero_agente } =
+    req.body;
 
   const id_grua = req.body.Grua?.id || req.body.id_grua;
   const id_supervisor = req.user.id;
@@ -221,7 +215,6 @@ export const asignarGrua = async (req, res) => {
         id_enganchador,
         id_supervisor,
         turno,
-        observaciones,
         nombre_agente,
         numero_agente,
         activo: true,
@@ -270,7 +263,7 @@ const ESTADOS_GRUA = [
  */
 export const cambiarEstadoGrua = async (req, res) => {
   const { id } = req.params;
-  const { estado, observaciones } = req.body;
+  const { estado, motivo } = req.body;
 
   if (!ESTADOS_GRUA.includes(estado)) {
     return res.status(400).json({
@@ -302,11 +295,7 @@ export const cambiarEstadoGrua = async (req, res) => {
 
     const estadoAnterior = grua.estado;
 
-    await grua.update({
-      estado,
-      observaciones:
-        observaciones !== undefined ? observaciones : grua.observaciones,
-    });
+    await grua.update({ estado });
 
     await registrarAuditoria({
       req,
@@ -314,7 +303,11 @@ export const cambiarEstadoGrua = async (req, res) => {
       entidad: "GRUA",
       idEntidad: grua.id,
       accion: "CAMBIAR_ESTADO",
-      descripcion: `Se cambió el estado de la grúa ${grua.patente} de ${estadoAnterior} a ${estado}`,
+      descripcion: `Se cambió el estado de la grúa ${grua.patente} de ${estadoAnterior} a ${estado}${
+        typeof motivo === "string" && motivo.trim()
+          ? ` — Motivo: ${motivo.trim()}`
+          : ""
+      }`,
       antes: { estado: estadoAnterior },
       despues: { estado },
     });

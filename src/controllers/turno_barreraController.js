@@ -157,7 +157,7 @@ export const obtenerMiTurnoBarrera = async (req, res) => {
 };
 
 export const asignarBarrera = async (req, res) => {
-  const { id_barrera, turno, id_usuarios, observaciones } = req.body;
+  const { id_barrera, turno, id_usuarios } = req.body;
   const id_supervisor = req.user.id;
 
   if (!id_barrera || !turno || !Array.isArray(id_usuarios) || id_usuarios.length === 0) {
@@ -211,7 +211,6 @@ export const asignarBarrera = async (req, res) => {
         activo: true,
         fecha_inicio: new Date(),
         fecha_fin: null,
-        observaciones: observaciones || null,
       },
       { transaction },
     );

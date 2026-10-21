@@ -38,10 +38,6 @@ const Grua = sequelize.define(
       ),
       allowNull: false,
     },
-    observaciones: {
-      type: DataTypes.STRING(200),
-      allowNull: true,
-    },
   },
   {
     tableName: "gruas",

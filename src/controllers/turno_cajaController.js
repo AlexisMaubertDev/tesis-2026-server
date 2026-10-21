@@ -108,6 +108,7 @@ export const obtenerTurnoCajasAbiertas = async (req, res) => {
 
 export const cerrarTurnoCaja = async (req, res) => {
   const { id } = req.params;
+  const { observaciones } = req.body;
   const usuario = req.user;
 
   try {
@@ -120,12 +121,27 @@ export const cerrarTurnoCaja = async (req, res) => {
       });
     }
 
+    // La observación del cierre es opcional y se acumula al final del campo
+    // `observaciones` (mismo patrón que las incidencias), por si el turno ya
+    // tenía observaciones cargadas.
+    const observacionesPrevias = turnoCaja.observaciones || "";
+    const observacionesFinales =
+      typeof observaciones === "string" && observaciones.trim()
+        ? observacionesPrevias
+          ? `${observacionesPrevias}\n- ${observaciones.trim()}`
+          : `- ${observaciones.trim()}`
+        : observacionesPrevias || null;
+
     const transaction = await sequelize.transaction();
 
-    await editarEntidad({
+    const turnoCajaCerrado = await editarEntidad({
       modelo: Turno_Caja,
       id,
-      datos: { cierre: new Date(), activo: false },
+      datos: {
+        cierre: new Date(),
+        activo: false,
+        observaciones: observacionesFinales,
+      },
       entidad: "TURNO_CAJA",
       descripcion: `Cerro el turno de ${turnoCaja.turno} para la caja con ID ${turnoCaja.id_caja}`,
       req,
@@ -136,7 +152,7 @@ export const cerrarTurnoCaja = async (req, res) => {
     await transaction.commit();
     return res.status(200).json({
       success: true,
-      data: turnoCaja.toJSON(),
+      data: turnoCajaCerrado.toJSON(),
       message: "Turno de caja cerrado exitosamente",
     });
   } catch (err) {

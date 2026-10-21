@@ -343,7 +343,8 @@ export const egresarAcarreo = async (req, res) => {
 /**
  * Salida sin cargo (supervisor): un acarreo INGRESADO sale de la playa sin
  * abonar. Pasa a SIN_CARGO, se registra la fecha de egreso y el motivo queda
- * guardado en las observaciones del acarreo (además de la auditoría).
+ * guardado como incidencia del acarreo (además de la auditoría), para que el
+ * supervisor lo vea junto al resto de las incidencias.
  */
 export const sacarSinCargo = async (req, res) => {
   try {
@@ -373,15 +374,20 @@ export const sacarSinCargo = async (req, res) => {
       });
     }
 
-    const detalle = `Salida sin cargo (${new Date().toISOString()}): ${motivo.trim()}`;
-    const observaciones = acarreo.observaciones
-      ? `${acarreo.observaciones}\n${detalle}`
-      : detalle;
+    const fecha = new Date().toISOString();
+    const incidencia = `Salida sin cargo (${fecha}): ${motivo.trim()}`;
+
+    // El motivo se acumula como incidencia del acarreo (el mismo canal que usa
+    // el supervisor para el resto de las incidencias).
+    const incidenciasPrevias = acarreo.incidencias;
+    const incidenciasNuevas = incidenciasPrevias
+      ? `${incidenciasPrevias}\n${incidencia}`
+      : incidencia;
 
     await acarreo.update({
       estado: "SIN_CARGO",
       fecha_egreso: new Date(),
-      observaciones,
+      incidencias: incidenciasNuevas,
     });
 
     await registrarAuditoria({
@@ -390,9 +396,9 @@ export const sacarSinCargo = async (req, res) => {
       accion: "SALIDA_SIN_CARGO",
       entidad: "ACARREO",
       idEntidad: acarreo.id,
-      descripcion: detalle,
-      antes: { estado: "INGRESADO" },
-      despues: { estado: "SIN_CARGO", motivo: motivo.trim() },
+      descripcion: incidencia,
+      antes: { estado: "INGRESADO", incidencias: incidenciasPrevias ?? null },
+      despues: { estado: "SIN_CARGO", incidencia },
     });
 
     return res.status(200).json({
