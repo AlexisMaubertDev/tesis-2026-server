@@ -2,6 +2,7 @@ import express from "express";
 import {
   editarVehiculo,
   eliminarVehiculo,
+  generarInformeVehiculosPdf,
   ingresarVehiculoAPlaya,
   obtenerVehiculo,
   obtenerVehiculos,
@@ -17,6 +18,7 @@ const router = express.Router();
 router
   .post("/ingresar", authMiddleware, playaMiddleware, ingresarVehiculoAPlaya)
   .get("/", authMiddleware, obtenerVehiculos)
+  .get("/informe.pdf", authMiddleware, generarInformeVehiculosPdf)
   .get("/:id", authMiddleware, obtenerVehiculo)
   .put("/:id", authMiddleware, supervisorMiddleware, editarVehiculo)
   .delete("/:id", authMiddleware, supervisorMiddleware, eliminarVehiculo);

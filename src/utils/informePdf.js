@@ -120,6 +120,20 @@ const columnasTurnoGrua = () => [
   ["incidencias", "Incidencias", 90],
 ];
 
+/**
+ * Columnas del listado de vehículos filtrado desde `/vehiculos` (RF18):
+ * patente, vehículo, sucursal del último acarreo, estado, cantidad de acarreos
+ * y fecha del último acarreo.
+ */
+const columnasVehiculos = () => [
+  ["patente", "Patente", 60],
+  ["vehiculo", "Vehículo", 115],
+  ["sucursal", "Sucursal", 90],
+  ["estado", "Estado", 65],
+  ["acarreos", "Acarreos", 65],
+  ["ultimo", "Último acarreo", 95],
+];
+
 const ALTO_ENCABEZADO_TABLA = 20;
 const ALTO_FILA = 24;
 
@@ -132,6 +146,8 @@ const columnasDe = (datos) => {
       return columnasTurnoBarrera();
     case "TURNO_GRUA":
       return columnasTurnoGrua();
+    case "VEHICULOS":
+      return columnasVehiculos();
     default:
       return columnasMovimientos(datos);
   }
@@ -146,6 +162,8 @@ const tituloTablaDe = (datos) => {
       return "Detalle de movimientos";
     case "TURNO_GRUA":
       return "Detalle de acarreos";
+    case "VEHICULOS":
+      return "Detalle de vehículos";
     default:
       return "Detalle de vehículos";
   }
@@ -160,6 +178,8 @@ const mensajeVacioDe = (datos) => {
       return "No hubo entradas ni salidas durante el turno.";
     case "TURNO_GRUA":
       return "No hubo acarreos durante el turno.";
+    case "VEHICULOS":
+      return "No hay vehículos que coincidan con los filtros aplicados.";
     default:
       return "No hay movimientos en el período seleccionado.";
   }
@@ -377,17 +397,22 @@ export const construirInformePdf = (datos) => {
   // --------------------------------------------------------------------
   // Sección: datos del informe
   // --------------------------------------------------------------------
-  y = tituloSeccion("Datos del informe", y);
+  y = tituloSeccion(datos.tituloDatosInforme ?? "Datos del informe", y);
 
   const filasInforme = [
     { etiqueta: "Tipo de informe", valor: datos.titulo },
     { etiqueta: "Sucursal", valor: datos.sucursal.nombre },
     { etiqueta: "Período", valor: datos.periodo.descripcion },
-    {
+  ];
+
+  // Los informes con fechas muestran el rango; el listado de vehículos puede
+  // no tener filtro de fecha y muestra el detalle en "Filtros aplicados".
+  if (datos.periodo.desde || datos.periodo.hasta) {
+    filasInforme.push({
       etiqueta: "Desde / hasta",
       valor: `${formatoFecha(datos.periodo.desde)}  al  ${formatoFecha(datos.periodo.hasta)}`,
-    },
-  ];
+    });
+  }
 
   // Informe de cierre de turno (RF14/CU08 y RF15/CU13): se agrega el responsable.
   if (datos.responsable) {
@@ -492,6 +517,12 @@ export const construirInformePdf = (datos) => {
         return formatoImporte(movimiento.efectivo);
       case "mp":
         return formatoImporte(movimiento.mp);
+      case "sucursal":
+        return movimiento.sucursal ?? "-";
+      case "acarreos":
+        return String(movimiento.cantidad_acarreos ?? 0);
+      case "ultimo":
+        return formatoFecha(movimiento.ultimo_acarreo);
       case "estado":
         return etiquetaEstado(movimiento.estado);
       case "cantidad":
