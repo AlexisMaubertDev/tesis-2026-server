@@ -124,6 +124,15 @@ export const cerrarTurnoCaja = async (req, res) => {
       });
     }
 
+    // Un cajero sólo puede cerrar sus propios turnos. Supervisor y Sistemas
+    // conservan el acceso administrativo para cerrar turnos de la sucursal.
+    if (usuario.rol === "CAJERO" && turnoCaja.id_usuario !== usuario.id) {
+      return res.status(403).json({
+        success: false,
+        message: "Sólo podés cerrar tus propios turnos de caja",
+      });
+    }
+
     // Arqueo: el efectivo contado es opcional, pero si viene debe ser válido.
     let efectivoContado = null;
 
@@ -197,11 +206,19 @@ export const obtenerTurnosDeCaja = async (req, res) => {
   }
 };
 
-// GET /turno_caja/cerrados — todos los turnos de caja cerrados.
+// GET /turno_caja/cerrados — turnos de caja cerrados visibles para el usuario.
+// El cajero sólo ve los propios; supervisor y Sistemas conservan el listado
+// completo para consulta administrativa.
 export const obtenerTurnosCerrados = async (req, res) => {
   try {
+    const where = { activo: false };
+
+    if (req.user.rol === "CAJERO") {
+      where.id_usuario = req.user.id;
+    }
+
     const turnos = await Turno_Caja.findAll({
-      where: { activo: false },
+      where,
       order: [["apertura", "DESC"]],
       include: [
         { model: Caja, attributes: ["id", "numero_caja", "referencia"] },
@@ -225,6 +242,15 @@ export const obtenerTurnosCerrados = async (req, res) => {
 // GET /turno_caja/usuario/:id — todos los turnos de caja de un usuario (abiertos y cerrados).
 export const obtenerTurnosDeUsuario = async (req, res) => {
   const { id } = req.params;
+
+  // El cajero sólo puede consultar su propio historial. Supervisor y Sistemas
+  // siguen pudiendo consultar el de cualquier usuario.
+  if (req.user.rol === "CAJERO" && id !== req.user.id) {
+    return res.status(403).json({
+      success: false,
+      message: "Sólo podés consultar tus propios turnos de caja",
+    });
+  }
 
   try {
     const turnos = await Turno_Caja.findAll({
@@ -268,6 +294,14 @@ export const obtenerDetalleTurnoCaja = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Turno de caja no encontrado",
+      });
+    }
+
+    // Un cajero no puede ver el detalle de un cierre ajeno.
+    if (req.user.rol === "CAJERO" && turno.id_usuario !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: "Sólo podés ver el detalle de tus propios cierres de caja",
       });
     }
 
@@ -437,6 +471,14 @@ export const generarInformeTurnoCajaPdf = async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Turno de caja no encontrado" });
+    }
+
+    // Un cajero no puede generar el informe de un cierre ajeno.
+    if (req.user.rol === "CAJERO" && turno.id_usuario !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: "Sólo podés generar el informe de tus propios cierres de caja",
+      });
     }
 
     const cobros = await Cobro.findAll({

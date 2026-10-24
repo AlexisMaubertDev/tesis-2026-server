@@ -694,6 +694,7 @@ export const generarComprobanteCobro = async (req, res) => {
       include: [
         {
           model: Turno_Caja,
+          attributes: ["id", "id_usuario"],
           include: [
             {
               model: Usuario,
@@ -718,6 +719,18 @@ export const generarComprobanteCobro = async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Cobro no encontrado" });
+    }
+
+    // Un cajero sólo puede emitir comprobantes de cobros de sus propios
+    // turnos. Supervisor y Sistemas conservan el acceso administrativo.
+    if (
+      req.user.rol === "CAJERO" &&
+      cobro.Turno_Caja?.id_usuario !== req.user.id
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Sólo podés acceder a los comprobantes de tus propios cobros",
+      });
     }
 
     res.setHeader("Content-Type", "application/pdf");
