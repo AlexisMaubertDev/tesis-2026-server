@@ -2,12 +2,13 @@ import { Op } from "sequelize";
 import sequelize from "../config/db.js";
 import { Acarreo, Grua, Sucursal, Turno_Grua, Usuario, Vehiculo } from "../models/index.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
+import { construirInformePdf, formatoFecha } from "../utils/informePdf.js";
 
 /** Include de los usuarios que participan de un turno de grúa. */
 const usuariosDelTurno = [
-  { model: Usuario, as: "chofer", attributes: ["id", "nombre", "apellido", "legajo", "dni"] },
-  { model: Usuario, as: "enganchador", attributes: ["id", "nombre", "apellido", "legajo", "dni"] },
-  { model: Usuario, as: "supervisor", attributes: ["id", "nombre", "apellido", "legajo", "dni"] },
+  { model: Usuario, as: "chofer", attributes: ["id", "nombre", "apellido", "legajo", "dni", "rol"] },
+  { model: Usuario, as: "enganchador", attributes: ["id", "nombre", "apellido", "legajo", "dni", "rol"] },
+  { model: Usuario, as: "supervisor", attributes: ["id", "nombre", "apellido", "legajo", "dni", "rol"] },
 ];
 
 /** Grúa del turno con su sucursal. */
@@ -214,12 +215,12 @@ export const finalizarTodosLosTurnosGruasPorSucursal = async (req, res) => {
     transaction = await sequelize.transaction();
 
     const turnosActivos = await Turno_Grua.findAll({
-      attributes: ["id", "id_grua"],
+      attributes: ["id", "id_grua", "turno", "fecha_inicio"],
       include: [
         {
           model: Grua,
           where: { id_sucursal },
-          attributes: ["patente"],
+          attributes: ["patente", "numero"],
           required: true,
         },
       ],
@@ -269,10 +270,28 @@ export const finalizarTodosLosTurnosGruasPorSucursal = async (req, res) => {
 
     await transaction.commit();
 
+    // Se devuelven los turnos cerrados: el supervisor puede emitir el informe
+    // por grúa de cada uno (RF27).
     return res.status(200).json({
       success: true,
       message:
         "Todos los turnos activos de la sucursal fueron cerrados exitosamente",
+      data: {
+        turnos: turnosActivos.map((turno) => ({
+          id: turno.id,
+          id_grua: turno.id_grua,
+          turno: turno.turno,
+          fecha_inicio: turno.fecha_inicio,
+          fecha_fin: new Date(),
+          grua: turno.Grua
+            ? {
+                id: turno.id_grua,
+                patente: turno.Grua.patente,
+                numero: turno.Grua.numero,
+              }
+            : null,
+        })),
+      },
     });
   } catch (error) {
     console.error(error);
@@ -468,6 +487,150 @@ export const obtenerDetalleTurnoGrua = async (req, res) => {
     return res
       .status(500)
       .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+/**
+ * GET /turno_grua/:id/informe.pdf — informe del turno de grúa, en PDF
+ * (RF15 / CU13 y RF27).
+ *
+ * Es el **informe por grúa**: la grúa, el personal que la operó (chofer,
+ * enganchador y supervisor), el resumen de los acarreos y el detalle de cada
+ * uno (fecha, patente, vehículo, dirección y motivo). Sirve para turnos
+ * abiertos y cerrados, así que el supervisor puede emitirlo al cerrar el turno.
+ */
+export const generarInformeTurnoGruaPdf = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const turno = await Turno_Grua.findByPk(id, {
+      include: [gruaDelTurno, ...usuariosDelTurno],
+    });
+
+    if (!turno) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Turno de grúa no encontrado" });
+    }
+
+    const acarreos = await Acarreo.findAll({
+      where: { id_turno_grua: id },
+      order: [["fecha_acarreo", "ASC"]],
+      include: [{ model: Vehiculo }],
+    });
+
+    const nombreUsuario = (usuario) =>
+      usuario
+        ? `${usuario.nombre} ${usuario.apellido}${usuario.rol ? ` (${usuario.rol})` : ""}`
+        : null;
+
+    const datos = {
+      tipo: "TURNO_GRUA",
+      titulo: "Informe de cierre de turno de grúa",
+      sucursal: {
+        id: turno.Grua?.Sucursal?.id ?? null,
+        nombre: turno.Grua?.Sucursal?.nombre ?? "Sucursal desconocida",
+      },
+      periodo: {
+        desde: turno.fecha_inicio,
+        hasta: turno.fecha_fin ?? new Date(),
+        descripcion: `Turno ${turno.turno} · Grúa ${turno.Grua?.patente ?? "-"}`,
+      },
+      responsable: nombreUsuario(turno.chofer),
+      filasExtra: [
+        {
+          etiqueta: "Grúa",
+          valor: turno.Grua
+            ? `N° ${turno.Grua.numero} · ${turno.Grua.patente}`
+            : "-",
+        },
+        { etiqueta: "Turno", valor: `Turno ${turno.turno}` },
+        {
+          etiqueta: "Inicio del turno",
+          valor: formatoFecha(turno.fecha_inicio),
+        },
+        {
+          etiqueta: "Cierre del turno",
+          valor: turno.fecha_fin
+            ? formatoFecha(turno.fecha_fin)
+            : "Turno abierto",
+        },
+        {
+          etiqueta: "Estado del turno",
+          valor: turno.activo ? "Abierto" : "Cerrado",
+        },
+        // Usuarios del turno con su rol (regla de informes de cierre).
+        { etiqueta: "Chofer", valor: nombreUsuario(turno.chofer) ?? "-" },
+        {
+          etiqueta: "Enganchador",
+          valor: nombreUsuario(turno.enganchador) ?? "-",
+        },
+        {
+          etiqueta: "Supervisor",
+          valor: nombreUsuario(turno.supervisor) ?? "-",
+        },
+        {
+          etiqueta: "Agente",
+          valor: turno.nombre_agente
+            ? `${turno.nombre_agente} (${turno.numero_agente})`
+            : "-",
+        },
+        ...(turno.incidencias
+          ? [{ etiqueta: "Incidencias", valor: turno.incidencias }]
+          : []),
+      ],
+      // Regla de informes: el cierre del turno no muestra estados de los autos.
+      // Sólo lo que hizo la grúa en el turno.
+      resumen: [
+        { etiqueta: "Acarreos", valor: String(acarreos.length) },
+        {
+          etiqueta: "Con denuncia",
+          valor: String(acarreos.filter((a) => a.fue_denuncia).length),
+        },
+        {
+          etiqueta: "Con siniestro",
+          valor: String(acarreos.filter((a) => a.tuvo_siniestro).length),
+        },
+        {
+          etiqueta: "Con incidencias",
+          valor: String(acarreos.filter((a) => a.incidencias).length),
+        },
+      ],
+      movimientos: acarreos.map((acarreo) => {
+        const vehiculo = acarreo.Vehiculo;
+
+        return {
+          fecha: acarreo.fecha_acarreo,
+          patente: vehiculo?.patente ?? "-",
+          marca: vehiculo?.marca ?? null,
+          modelo: vehiculo?.modelo ?? null,
+          color: vehiculo?.color ?? null,
+          direccion: acarreo.direccion,
+          motivo: acarreo.motivo,
+          incidencias: acarreo.incidencias ?? "-",
+        };
+      }),
+      totales: { cantidad: acarreos.length },
+    };
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="informe-turno-grua-${turno.id}.pdf"`,
+    );
+
+    const doc = construirInformePdf(datos);
+
+    doc.pipe(res);
+    doc.end();
+  } catch (error) {
+    console.error("Error al generar el informe del turno de grúa:", error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        message: "Error al generar el informe del turno de grúa",
+      });
+    }
   }
 };
 

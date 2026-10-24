@@ -19,7 +19,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "seed:alfa": "node scripts/seed_datos_alfa.js",
+    "seed:alfa:simular": "node scripts/seed_datos_alfa.js --simular"
   },
   "keywords": [],
   "author": "",

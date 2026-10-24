@@ -65,10 +65,17 @@ const Turno_Caja = sequelize.define(
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
     },
-    observaciones: {
-      type: DataTypes.TEXT,
+    // Arqueo de cierre (RF14 / CU08): número de sobre rendido y efectivo
+    // contado al cerrar el turno, para comparar contra el efectivo esperado.
+    numero_sobre: {
+      type: DataTypes.STRING,
       allowNull: true,
     },
+    efectivo_contado: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
+
     incidencias: {
       type: DataTypes.TEXT,
       allowNull: true,

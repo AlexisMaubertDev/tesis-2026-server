@@ -2,14 +2,17 @@ import sequelize from "../config/db.js";
 import {
   Acarreo,
   Barrera,
+  Grua,
   Sucursal,
   Turno_Barrera,
   Turno_Barrera_Usuario,
+  Turno_Grua,
   Usuario,
   Vehiculo,
 } from "../models/index.js";
 import { Op } from "sequelize";
 import { registrarAuditoria } from "../utils/auditoria.js";
+import { construirInformePdf, formatoFecha } from "../utils/informePdf.js";
 
 /** Barrera del turno con su sucursal. */
 const barreraDelTurno = {
@@ -328,6 +331,23 @@ export const finalizarTodosTurnosBarrera = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Todos los turnos de barrera de la sucursal fueron finalizados",
+      // Se devuelven los turnos cerrados: el supervisor emite un informe por
+      // cada uno automáticamente (RF15 / CU13).
+      data: {
+        turnos: turnosActivos.map((turno) => ({
+          id: turno.id,
+          id_barrera: turno.id_barrera,
+          turno: turno.turno,
+          fecha_inicio: turno.fecha_inicio,
+          fecha_fin: new Date(),
+          barrera: turno.Barrera
+            ? {
+                id: turno.Barrera.id,
+                ubicacion: turno.Barrera.ubicacion,
+              }
+            : null,
+        })),
+      },
     });
   } catch (error) {
     console.error(error);
@@ -490,6 +510,289 @@ export const obtenerDetalleTurnoBarrera = async (req, res) => {
     return res
       .status(500)
       .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+/**
+ * GET /barreras/turnos/:id/informe.pdf — informe del turno de barrera, en PDF
+ * (RF15 / CU13).
+ *
+ * Es el informe que el supervisor consulta para ver cómo se movió la playa
+ * durante un turno: la barrera, los playeros asignados, el resumen (ingresos,
+ * egresos y autos que quedaron en la playa) y el detalle de los movimientos
+ * (entradas y salidas) con su fecha. Sirve para turnos abiertos y cerrados.
+ */
+export const generarInformeTurnoBarreraPdf = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const turno = await Turno_Barrera.findByPk(id, {
+      include: [barreraDelTurno, usuariosAsignadosDelTurno()],
+    });
+
+    if (!turno) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Turno de barrera no encontrado" });
+    }
+
+    const inicio = new Date(turno.fecha_inicio).getTime();
+    const finTurno = turno.fecha_fin ? new Date(turno.fecha_fin) : new Date();
+    const fin = finTurno.getTime();
+
+    const enVentana = (fecha) => {
+      if (!fecha) return false;
+      const momento = new Date(fecha).getTime();
+      return momento >= inicio && momento <= fin;
+    };
+
+    // Todos los turnos de la barrera: un auto puede haber entrado en un turno
+    // anterior y salir durante este.
+    const turnosDeLaBarrera = await Turno_Barrera.findAll({
+      where: { id_barrera: turno.id_barrera },
+      attributes: ["id"],
+    });
+
+    const acarreosDeLaBarrera = await Acarreo.findAll({
+      where: {
+        id_turno_barrera: { [Op.in]: turnosDeLaBarrera.map((t) => t.id) },
+      },
+      include: [{ model: Vehiculo }],
+    });
+
+    const movimientos = [
+      ...acarreosDeLaBarrera
+        .filter((a) => enVentana(a.fecha_ingreso))
+        .map((a) => ({ tipo: "ENTRADA", fecha: a.fecha_ingreso, acarreo: a })),
+      ...acarreosDeLaBarrera
+        .filter((a) => enVentana(a.fecha_egreso))
+        .map((a) => ({ tipo: "SALIDA", fecha: a.fecha_egreso, acarreo: a })),
+    ].sort((x, y) => new Date(x.fecha).getTime() - new Date(y.fecha).getTime());
+
+    // Reporte extra del cierre: los autos que están en la playa en ese
+    // momento. Se mira toda la sucursal (no sólo esta barrera), porque un auto
+    // puede haber ingresado por otra barrera y seguir en la playa.
+    const idSucursal = turno.Barrera?.id_sucursal;
+    let autosEnPlaya = [];
+
+    if (idSucursal) {
+      const barrerasDeLaSucursal = await Barrera.findAll({
+        where: { id_sucursal: idSucursal },
+        attributes: ["id", "ubicacion"],
+      });
+
+      const turnosDeLaSucursal = await Turno_Barrera.findAll({
+        where: {
+          id_barrera: {
+            [Op.in]: barrerasDeLaSucursal.map((barrera) => barrera.id),
+          },
+        },
+        attributes: ["id", "id_barrera"],
+      });
+
+      const ubicacionPorBarrera = new Map(
+        barrerasDeLaSucursal.map((barrera) => [barrera.id, barrera.ubicacion]),
+      );
+      const barreraPorTurno = new Map(
+        turnosDeLaSucursal.map((t) => [t.id, t.id_barrera]),
+      );
+
+      // Los autos también pueden haber sido acarreados por una grúa de la
+      // sucursal sin un turno de barrera asociado; se incluyen igual.
+      const gruasDeLaSucursal = await Grua.findAll({
+        where: { id_sucursal: idSucursal },
+        attributes: ["id"],
+      });
+
+      const turnosGruaDeLaSucursal = await Turno_Grua.findAll({
+        where: {
+          id_grua: {
+            [Op.in]: gruasDeLaSucursal.map((grua) => grua.id),
+          },
+        },
+        attributes: ["id"],
+      });
+
+      const acarreosEnPlaya = await Acarreo.findAll({
+        where: {
+          // `NULL <= fecha` no se cumple en SQL: esto ya descarta los que no
+          // ingresaron a la playa.
+          fecha_ingreso: { [Op.lte]: finTurno },
+          [Op.and]: [
+            {
+              [Op.or]: [
+                {
+                  id_turno_barrera: {
+                    [Op.in]: turnosDeLaSucursal.map((t) => t.id),
+                  },
+                },
+                {
+                  id_turno_grua: {
+                    [Op.in]: turnosGruaDeLaSucursal.map((t) => t.id),
+                  },
+                },
+              ],
+            },
+            {
+              [Op.or]: [
+                { fecha_egreso: null },
+                { fecha_egreso: { [Op.gt]: finTurno } },
+              ],
+            },
+          ],
+        },
+        include: [{ model: Vehiculo }],
+        order: [["fecha_ingreso", "ASC"]],
+      });
+
+      autosEnPlaya = acarreosEnPlaya.map((acarreo) => ({
+        patente: acarreo.Vehiculo?.patente ?? "-",
+        marca: acarreo.Vehiculo?.marca ?? null,
+        modelo: acarreo.Vehiculo?.modelo ?? null,
+        color: acarreo.Vehiculo?.color ?? null,
+        fecha: acarreo.fecha_ingreso,
+        barrera: acarreo.id_turno_barrera
+          ? ubicacionPorBarrera.get(
+              barreraPorTurno.get(acarreo.id_turno_barrera),
+            ) ?? "-"
+          : "Sin barrera",
+      }));
+    }
+
+    const playeros = (turno.usuarios_asignados ?? [])
+      .map((asignado) => asignado.Usuario)
+      .filter(Boolean)
+      .map((usuario) => ({
+        nombre: `${usuario.nombre} ${usuario.apellido}`,
+        rol: usuario.rol,
+      }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+    const filasPlayeros = playeros.length
+      ? playeros.map((playero, indice) => ({
+          etiqueta: indice === 0 ? "Playeros" : "",
+          valor: `${playero.nombre}${playero.rol ? ` (${playero.rol})` : ""}`,
+        }))
+      : [{ etiqueta: "Playeros", valor: "-" }];
+
+    const datos = {
+      tipo: "TURNO_BARRERA",
+      titulo: "Informe de cierre de turno de barrera",
+      sucursal: {
+        id: turno.Barrera?.Sucursal?.id ?? null,
+        nombre: turno.Barrera?.Sucursal?.nombre ?? "Sucursal desconocida",
+      },
+      periodo: {
+        desde: turno.fecha_inicio,
+        hasta: finTurno,
+        descripcion: `Turno ${turno.turno} · ${turno.Barrera?.ubicacion ?? "barrera"}`,
+      },
+      filasExtra: [
+        { etiqueta: "Barrera", valor: turno.Barrera?.ubicacion ?? "-" },
+        { etiqueta: "Turno", valor: `Turno ${turno.turno}` },
+        {
+          etiqueta: "Inicio del turno",
+          valor: formatoFecha(turno.fecha_inicio),
+        },
+        {
+          etiqueta: "Cierre del turno",
+          valor: turno.fecha_fin
+            ? formatoFecha(turno.fecha_fin)
+            : "Turno abierto",
+        },
+        {
+          etiqueta: "Estado del turno",
+          valor: turno.activo ? "Abierto" : "Cerrado",
+        },
+        // Usuarios del turno con su rol (regla de informes de cierre).
+        ...filasPlayeros,
+        ...(turno.incidencias
+          ? [{ etiqueta: "Incidencias", valor: turno.incidencias }]
+          : []),
+      ],
+      // Regla de informes: el cierre del turno no muestra estados de los autos.
+      // Sólo las entradas/salidas del turno y el extra de autos en la playa.
+      resumen: [
+        {
+          etiqueta: "Ingresos a la playa",
+          valor: String(
+            movimientos.filter((m) => m.tipo === "ENTRADA").length,
+          ),
+        },
+        {
+          etiqueta: "Egresos de la playa",
+          valor: String(
+            movimientos.filter((m) => m.tipo === "SALIDA").length,
+          ),
+        },
+        { etiqueta: "Movimientos", valor: String(movimientos.length) },
+        {
+          etiqueta: "Autos en playa al cierre",
+          valor: String(autosEnPlaya.length),
+        },
+      ],
+      secciones: [
+        {
+          titulo: "Entradas y salidas del turno",
+          columnas: [
+            ["tipo", "Movimiento", 80],
+            ["patente", "Patente", 75],
+            ["vehiculo", "Vehículo", 190],
+            ["fecha", "Fecha y hora", 150],
+          ],
+          filas: movimientos.map((movimiento) => {
+            const vehiculo = movimiento.acarreo.Vehiculo;
+
+            return {
+              tipo: movimiento.tipo,
+              fecha: movimiento.fecha,
+              patente: vehiculo?.patente ?? "-",
+              marca: vehiculo?.marca ?? null,
+              modelo: vehiculo?.modelo ?? null,
+              color: vehiculo?.color ?? null,
+            };
+          }),
+          mensajeVacio: "No hubo entradas ni salidas en el turno.",
+        },
+        {
+          titulo: `Autos en la playa al cierre (${autosEnPlaya.length})`,
+          columnas: [
+            ["patente", "Patente", 75],
+            ["vehiculo", "Vehículo", 190],
+            ["fecha", "Ingresó", 120],
+            ["barrera", "Barrera de ingreso", 110],
+          ],
+          filas: autosEnPlaya,
+          mensajeVacio: "No hay autos en la playa al cierre del turno.",
+          nuevaPagina: true,
+        },
+      ],
+      totales: {
+        cantidad: movimientos.length,
+        ingresos: movimientos.filter((m) => m.tipo === "ENTRADA").length,
+        egresos: movimientos.filter((m) => m.tipo === "SALIDA").length,
+        enPlaya: autosEnPlaya.length,
+      },
+    };
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="informe-turno-barrera-${turno.id}.pdf"`,
+    );
+
+    const doc = construirInformePdf(datos);
+
+    doc.pipe(res);
+    doc.end();
+  } catch (error) {
+    console.error("Error al generar el informe del turno de barrera:", error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        message: "Error al generar el informe del turno de barrera",
+      });
+    }
   }
 };
 

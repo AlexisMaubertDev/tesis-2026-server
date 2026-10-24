@@ -15,6 +15,7 @@ import {
   obtenerDetalleTurnoCaja,
   obtenerTurnosDeUsuario,
   agregarIncidenciaTurnoCaja,
+  generarInformeTurnoCajaPdf,
 } from "../controllers/turno_cajaController.js";
 
 const router = express.Router();
@@ -50,6 +51,12 @@ router
     cajeroMiddleware,
     obtenerDetalleTurnoCaja,
   ) //Detalle de un turno de caja
+  .get(
+    "/:id/informe.pdf",
+    authMiddleware,
+    cajeroMiddleware,
+    generarInformeTurnoCajaPdf,
+  ) //Informe de cobros del turno, en PDF (cierre de turno)
   .get(
     "/:apertura",
     authMiddleware,

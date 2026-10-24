@@ -3,6 +3,7 @@ import sequelize from "../config/db.js";
 import {
   Caja,
   Cobro,
+  Sucursal,
   Turno_Caja,
   Usuario,
   Acarreo,
@@ -11,6 +12,8 @@ import {
 import { crearEntidad } from "../utils/crearEntidad.js";
 import { editarEntidad } from "../utils/editarEntidad.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
+import { armarInformeCobros } from "./informeController.js";
+import { construirInformePdf, formatoFecha } from "../utils/informePdf.js";
 
 export const empezarTurnoCaja = async (req, res) => {
   const usuario = req.user;
@@ -108,7 +111,7 @@ export const obtenerTurnoCajasAbiertas = async (req, res) => {
 
 export const cerrarTurnoCaja = async (req, res) => {
   const { id } = req.params;
-  const { observaciones } = req.body;
+  const { numero_sobre, efectivo_contado } = req.body;
   const usuario = req.user;
 
   try {
@@ -121,16 +124,19 @@ export const cerrarTurnoCaja = async (req, res) => {
       });
     }
 
-    // La observación del cierre es opcional y se acumula al final del campo
-    // `observaciones` (mismo patrón que las incidencias), por si el turno ya
-    // tenía observaciones cargadas.
-    const observacionesPrevias = turnoCaja.observaciones || "";
-    const observacionesFinales =
-      typeof observaciones === "string" && observaciones.trim()
-        ? observacionesPrevias
-          ? `${observacionesPrevias}\n- ${observaciones.trim()}`
-          : `- ${observaciones.trim()}`
-        : observacionesPrevias || null;
+    // Arqueo: el efectivo contado es opcional, pero si viene debe ser válido.
+    let efectivoContado = null;
+
+    if (efectivo_contado !== undefined && efectivo_contado !== null && efectivo_contado !== "") {
+      efectivoContado = Number(efectivo_contado);
+
+      if (Number.isNaN(efectivoContado) || efectivoContado < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "El efectivo contado debe ser un importe válido",
+        });
+      }
+    }
 
     const transaction = await sequelize.transaction();
 
@@ -140,7 +146,8 @@ export const cerrarTurnoCaja = async (req, res) => {
       datos: {
         cierre: new Date(),
         activo: false,
-        observaciones: observacionesFinales,
+        numero_sobre: numero_sobre?.trim() || null,
+        efectivo_contado: efectivoContado,
       },
       entidad: "TURNO_CAJA",
       descripcion: `Cerro el turno de ${turnoCaja.turno} para la caja con ID ${turnoCaja.id_caja}`,
@@ -284,9 +291,28 @@ export const obtenerDetalleTurnoCaja = async (req, res) => {
     totales.efectivo = Math.round(totales.efectivo * 100) / 100;
     totales.mp = Math.round(totales.mp * 100) / 100;
 
+    // Arqueo del cierre (RF14 / CU08): el efectivo esperado es el cobrado en
+    // efectivo; si el cajero cargó el efectivo contado, se informa la diferencia
+    // (positiva = sobrante, negativa = faltante).
+    const efectivoEsperado = totales.efectivo;
+    const efectivoContado =
+      turno.efectivo_contado === null || turno.efectivo_contado === undefined
+        ? null
+        : Number(turno.efectivo_contado);
+
+    const arqueo = {
+      numero_sobre: turno.numero_sobre ?? null,
+      efectivoEsperado,
+      efectivoContado,
+      diferencia:
+        efectivoContado === null
+          ? null
+          : Math.round((efectivoContado - efectivoEsperado) * 100) / 100,
+    };
+
     return res.status(200).json({
       success: true,
-      data: { turno, cobros, totales },
+      data: { turno, cobros, totales, arqueo },
       message: "Detalle del turno obtenido exitosamente",
     });
   } catch (err) {
@@ -381,5 +407,157 @@ export const agregarIncidenciaTurnoCaja = async (req, res) => {
     return res
       .status(500)
       .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+/**
+ * GET /turno_caja/:id/informe.pdf — informe de cobros del turno, en PDF.
+ *
+ * Es el informe de cierre de turno que el cajero emite al cerrar (CU08): junta
+ * los cobros del turno y usa el mismo armado que el informe global de cobros
+ * (RF21 / CU12). Sirve tanto para el turno abierto como para uno ya cerrado
+ * (por eso se busca por id, no por `activo`).
+ */
+export const generarInformeTurnoCajaPdf = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const turno = await Turno_Caja.findByPk(id, {
+      include: [
+        {
+          model: Caja,
+          attributes: ["id", "numero_caja", "referencia"],
+          include: [{ model: Sucursal, attributes: ["id", "nombre"] }],
+        },
+        { model: Usuario, attributes: ["nombre", "apellido", "dni", "legajo", "rol"] },
+      ],
+    });
+
+    if (!turno) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Turno de caja no encontrado" });
+    }
+
+    const cobros = await Cobro.findAll({
+      where: { id_turno_caja: id },
+      order: [["fecha", "ASC"]],
+      include: [
+        {
+          model: Turno_Caja,
+          include: [
+            { model: Caja, attributes: ["id", "numero_caja", "referencia"] },
+            { model: Usuario, attributes: ["nombre", "apellido"] },
+          ],
+        },
+        {
+          model: Acarreo,
+          include: [
+            {
+              model: Vehiculo,
+              attributes: ["patente", "marca", "modelo", "color"],
+            },
+          ],
+        },
+      ],
+    });
+
+    const sucursalNombre =
+      turno.Caja?.Sucursal?.nombre ?? "Sucursal desconocida";
+
+    // Efectivo esperado = cobrado en efectivo del turno (para el arqueo).
+    const efectivoEsperado =
+      Math.round(
+        cobros.reduce((acc, c) => acc + Number(c.efectivo || 0), 0) * 100,
+      ) / 100;
+
+    const efectivoContado =
+      turno.efectivo_contado === null || turno.efectivo_contado === undefined
+        ? null
+        : Number(turno.efectivo_contado);
+
+    const responsable = turno.Usuario
+      ? `${turno.Usuario.nombre} ${turno.Usuario.apellido} (${
+          turno.Usuario.rol ?? "CAJERO"
+        })${turno.Usuario.dni ? ` · DNI ${turno.Usuario.dni}` : ""}`
+      : null;
+
+    const datos = armarInformeCobros({
+      cobros,
+      modo: "TURNO",
+      sucursales: turno.Caja?.Sucursal
+        ? [turno.Caja.Sucursal]
+        : [],
+      periodo: {
+        desde: turno.apertura,
+        hasta: turno.cierre ?? new Date(),
+        descripcion: `Cierre de turno · Caja N° ${turno.Caja?.numero_caja ?? "-"} · Turno ${turno.turno}`,
+      },
+      responsable,
+      arqueo: {
+        numero_sobre: turno.numero_sobre ?? null,
+        efectivoEsperado,
+        efectivoContado,
+        diferencia:
+          efectivoContado === null
+            ? null
+            : Math.round((efectivoContado - efectivoEsperado) * 100) / 100,
+      },
+    });
+
+    // Regla de informes: el cierre del turno de caja muestra los cobros del
+    // turno, sus datos y sus usuarios con rol. No muestra estados de autos.
+    datos.titulo = "Informe de cierre de turno de caja";
+    datos.filasExtra = [
+      {
+        etiqueta: "Caja",
+        valor: turno.Caja
+          ? `N° ${turno.Caja.numero_caja}${
+              turno.Caja.referencia ? ` · ${turno.Caja.referencia}` : ""
+            }`
+          : "-",
+      },
+      { etiqueta: "Turno", valor: `Turno ${turno.turno}` },
+      {
+        etiqueta: "Inicio del turno",
+        valor: formatoFecha(turno.apertura),
+      },
+      {
+        etiqueta: "Cierre del turno",
+        valor: turno.cierre ? formatoFecha(turno.cierre) : "Turno abierto",
+      },
+      {
+        etiqueta: "Estado del turno",
+        valor: turno.activo ? "Abierto" : "Cerrado",
+      },
+      ...(turno.incidencias
+        ? [{ etiqueta: "Incidencias", valor: turno.incidencias }]
+        : []),
+    ];
+
+    // El informe de un turno siempre es de una sola sucursal (la de la caja).
+    datos.sucursal = {
+      id: turno.Caja?.Sucursal?.id ?? null,
+      nombre: sucursalNombre,
+    };
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="informe-turno-caja-${turno.id}.pdf"`,
+    );
+
+    const doc = construirInformePdf(datos);
+
+    doc.pipe(res);
+    doc.end();
+  } catch (error) {
+    console.error("Error al generar el informe del turno en PDF:", error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        message: "Error al generar el informe del turno",
+      });
+    }
   }
 };

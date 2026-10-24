@@ -11,6 +11,7 @@ import {
   obtenerTurnosGruaDeUsuario,
   obtenerTurnosGruaDeGrua,
   obtenerDetalleTurnoGrua,
+  generarInformeTurnoGruaPdf,
 } from "../controllers/turno_gruaController.js";
 
 const router = express.Router();
@@ -35,6 +36,12 @@ router
     supervisorMiddleware,
     obtenerDetalleTurnoGrua,
   ) //Detalle de un turno de grúa
+  .get(
+    "/:id/informe.pdf",
+    authMiddleware,
+    supervisorMiddleware,
+    generarInformeTurnoGruaPdf,
+  ) //Informe del turno de grúa en PDF
   .get(
     "/sucursal/:id",
     authMiddleware,

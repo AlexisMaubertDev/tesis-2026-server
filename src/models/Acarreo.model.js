@@ -83,10 +83,7 @@ const Acarreo = sequelize.define(
       type: DataTypes.BOOLEAN,
       allowNull: false,
     },
-    observaciones: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-    },
+
     incidencias: {
       type: DataTypes.TEXT,
       allowNull: true,

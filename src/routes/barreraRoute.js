@@ -17,6 +17,7 @@ import {
   obtenerTurnosBarreraDeUsuario,
   obtenerTurnosBarreraDeBarrera,
   obtenerDetalleTurnoBarrera,
+  generarInformeTurnoBarreraPdf,
 } from "../controllers/turno_barreraController.js";
 
 const router = express.Router();
@@ -48,6 +49,12 @@ router
     supervisorMiddleware,
     obtenerDetalleTurnoBarrera,
   ) //Detalle de un turno de barrera
+  .get(
+    "/turnos/:id/informe.pdf",
+    authMiddleware,
+    supervisorMiddleware,
+    generarInformeTurnoBarreraPdf,
+  ) //Informe del turno de barrera en PDF
   .get("/sucursal/:id", authMiddleware, supervisorMiddleware, obtenerBarrerasSucursal)
   .post("/", authMiddleware, sistemasMiddleware, crearBarrera)
   .put("/:id", authMiddleware, sistemasMiddleware, editarBarrera)

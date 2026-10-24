@@ -13,6 +13,7 @@ import turnoGruaRoutes from "./routes/turno_gruaRoutes.js";
 import acarreoRoutes from "./routes/acarreoRoutes.js";
 import cobroRoutes from "./routes/cobroRoutes.js";
 import tarifaRoutes from "./routes/tarifaRoutes.js";
+import informeRoutes from "./routes/informeRoutes.js";
 import testRoutes from "./routes/testRoutes.js";
 import { apiRateLimiter } from "./middlewares/rateLimitMiddleware.js";
 
@@ -54,6 +55,7 @@ app.use("/api/turno_grua", turnoGruaRoutes);
 app.use("/api/acarreos", acarreoRoutes);
 app.use("/api/cobros", cobroRoutes);
 app.use("/api/tarifas", tarifaRoutes);
+app.use("/api/informes", informeRoutes);
 
 console.log(process.env.NODE_ENV);
 if (process.env.NODE_ENV === "development") {
