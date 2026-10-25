@@ -60,8 +60,11 @@ const TIPO_ACARREO = "ACARREO";
 /** Estados de un acarreo que todavía está en la playa. */
 const ESTADOS_EN_PLAYA = ["ACARREADO", "INGRESADO"];
 
-/** Roles que pueden consultar los cobros (RF21: Cajero / Supervisor / Sistemas). */
-const ROLES_COBROS = ["CAJERO", "SUPERVISOR", "SISTEMAS"];
+/** Roles que pueden consultar los cobros (RF21): Supervisor y Sistemas. */
+const ROLES_COBROS = ["SUPERVISOR", "SISTEMAS"];
+
+/** Roles que pueden consultar el informe de acarreos: Supervisor y Sistemas. */
+const ROLES_ACARREOS = ["SUPERVISOR", "SISTEMAS"];
 
 /** Tipo de informe consolidado de la sucursal (RF15 / CU13). */
 const TIPO_CONSOLIDADO = "TURNO_SUCURSAL";
@@ -1299,6 +1302,13 @@ const construirDatosAcarreos = async (req) => {
         "Para generar el informe por rango de fechas hacen falta 'desde' y 'hasta'",
       );
     }
+  }
+
+  if (!ROLES_ACARREOS.includes(req.user.rol)) {
+    throw new ErrorInforme(
+      403,
+      "No tenés permiso para consultar los acarreos realizados",
+    );
   }
 
   const sucursales = await obtenerSucursalesDelInforme(req);
