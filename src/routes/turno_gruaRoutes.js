@@ -11,12 +11,14 @@ import {
   obtenerTurnosGruaDeUsuario,
   obtenerTurnosGruaDeGrua,
   obtenerDetalleTurnoGrua,
+  obtenerMiTurnoGrua,
   generarInformeTurnoGruaPdf,
 } from "../controllers/turno_gruaController.js";
 
 const router = express.Router();
 
 router
+  .get("/mi-turno", authMiddleware, obtenerMiTurnoGrua) //Turno activo del gruero autenticado
   .get("/", authMiddleware, supervisorMiddleware, obtenerTurnosGrua) //Todos los turnos de grúa
   .get(
     "/usuario/:id",

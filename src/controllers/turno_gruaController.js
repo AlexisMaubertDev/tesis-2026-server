@@ -491,6 +491,63 @@ export const obtenerDetalleTurnoGrua = async (req, res) => {
 };
 
 /**
+ * GET /turno_grua/mi-turno — detalle del turno de grúa activo del usuario
+ * autenticado (gruero). Devuelve la grúa, el personal, el supervisor y los
+ * acarreos del turno. Sirve a la app móvil para mostrar el turno habilitado
+ * arriba del formulario de acarreo.
+ */
+export const obtenerMiTurnoGrua = async (req, res) => {
+  try {
+    const turno = await Turno_Grua.findOne({
+      where: {
+        activo: true,
+        [Op.or]: [
+          { id_chofer: req.user.id },
+          { id_enganchador: req.user.id },
+        ],
+      },
+      include: [gruaDelTurno, ...usuariosDelTurno],
+      order: [["fecha_inicio", "DESC"]],
+    });
+
+    if (!turno) {
+      return res.status(404).json({
+        success: false,
+        message: "No tenés un turno de grúa activo",
+      });
+    }
+
+    const acarreos = await Acarreo.findAll({
+      where: { id_turno_grua: turno.id },
+      order: [["fecha_acarreo", "ASC"]],
+      include: [{ model: Vehiculo }],
+    });
+
+    const totales = acarreos.reduce(
+      (acc, acarreo) => ({
+        cantidad: acc.cantidad + 1,
+        ingresados: acc.ingresados + (acarreo.estado === "INGRESADO" ? 1 : 0),
+        cobrados: acc.cobrados + (acarreo.estado === "COBRADO" ? 1 : 0),
+        egresados: acc.egresados + (acarreo.estado === "EGRESADO" ? 1 : 0),
+        sinCargo: acc.sinCargo + (acarreo.estado === "SIN_CARGO" ? 1 : 0),
+      }),
+      { cantidad: 0, ingresados: 0, cobrados: 0, egresados: 0, sinCargo: 0 },
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: { turno, acarreos, totales },
+      message: "Detalle del turno de grúa obtenido exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+/**
  * GET /turno_grua/:id/informe.pdf — informe del turno de grúa, en PDF
  * (RF15 / CU13 y RF27).
  *
