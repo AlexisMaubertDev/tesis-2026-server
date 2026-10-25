@@ -53,7 +53,7 @@ export const obtenerGrueros = async (req, res) => {
       include: [
         {
           model: Sucursal,
-          attributes: ["nombre"],
+          attributes: ["id", "nombre"],
         },
         {
           model: Turno_Grua,
