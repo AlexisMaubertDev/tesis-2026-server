@@ -54,6 +54,12 @@ const TIPOS_MOVIMIENTO = ["ENTRADA", "SALIDA"];
 /** Tipo de informe de cobros (RF21 / CU12): lo recaudado en el período. */
 const TIPO_COBRO = "COBRO";
 
+/** Tipo de informe de acarreos: los operativos realizados en el período. */
+const TIPO_ACARREO = "ACARREO";
+
+/** Estados de un acarreo que todavía está en la playa. */
+const ESTADOS_EN_PLAYA = ["ACARREADO", "INGRESADO"];
+
 /** Roles que pueden consultar los cobros (RF21: Cajero / Supervisor / Sistemas). */
 const ROLES_COBROS = ["CAJERO", "SUPERVISOR", "SISTEMAS"];
 
@@ -1198,6 +1204,271 @@ const construirDatosTurnoSucursal = async (req) => {
   };
 };
 
+/**
+ * Resuelve las ventanas del informe de acarreos.
+ *
+ * En modo RANGO usa el rango pedido. En modo TURNO usa los turnos de grúa
+ * abiertos del alcance: para un GRUERO, los suyos; para el resto, los de las
+ * grúas de las sucursales del informe. Devuelve también los ids de esos turnos
+ * para que el informe muestre exactamente los acarreos del turno.
+ */
+const resolverVentanasAcarreos = async (
+  req,
+  modo,
+  desde,
+  hasta,
+  desdeHora,
+  hastaHora,
+  sucursales,
+) => {
+  if (modo === "RANGO") {
+    const inicio = construirMomento(desde, desdeHora, "00:00:00");
+    const fin = construirMomento(hasta, hastaHora, "23:59:59");
+
+    if (inicio.getTime() > fin.getTime()) {
+      throw new ErrorInforme(
+        400,
+        "La fecha 'desde' no puede ser posterior a 'hasta'",
+      );
+    }
+
+    return {
+      ventanas: [{ desde: inicio, hasta: fin }],
+      detalle: `Del ${desde} ${desdeHora || "00:00"} al ${hasta} ${hastaHora || "23:59"}`,
+      idsTurnoGrua: null,
+    };
+  }
+
+  const where = { activo: true };
+
+  if (req.user.rol === "GRUERO") {
+    where[Op.or] = [
+      { id_chofer: req.user.id },
+      { id_enganchador: req.user.id },
+    ];
+  }
+
+  const turnos = await Turno_Grua.findAll({
+    where,
+    include: [
+      {
+        model: Grua,
+        required: true,
+        attributes: ["id", "patente", "numero", "id_sucursal"],
+        where: { id_sucursal: { [Op.in]: sucursales.map((s) => s.id) } },
+      },
+    ],
+    order: [["fecha_inicio", "ASC"]],
+  });
+
+  if (turnos.length === 0) {
+    throw new ErrorInforme(
+      409,
+      "No hay turnos de grúa abiertos en la sucursal: elegí un rango de fechas",
+    );
+  }
+
+  return {
+    ventanas: turnos.map((turno) => ({
+      desde: new Date(turno.fecha_inicio),
+      hasta: turno.fecha_fin ? new Date(turno.fecha_fin) : new Date(),
+    })),
+    detalle: `${turnos.length} turno(s) de grúa abierto(s)`,
+    idsTurnoGrua: turnos.map((turno) => turno.id),
+  };
+};
+
+/**
+ * Arma el informe de acarreos: los operativos registrados en el período, con
+ * vehículo, sucursal, grúa, personal, motivo, dirección y estado.
+ *
+ * Es un informe operativo (no un cierre de turno): puede incluir acarreos de
+ * varios turnos de grúa y muestra el estado actual de cada acarreo.
+ */
+const construirDatosAcarreos = async (req) => {
+  const modo = String(req.query.modo ?? "TURNO").toUpperCase();
+
+  if (!["RANGO", "TURNO"].includes(modo)) {
+    throw new ErrorInforme(400, "El modo del informe debe ser RANGO o TURNO");
+  }
+
+  if (modo === "RANGO") {
+    if (!req.query.desde || !req.query.hasta) {
+      throw new ErrorInforme(
+        400,
+        "Para generar el informe por rango de fechas hacen falta 'desde' y 'hasta'",
+      );
+    }
+  }
+
+  const sucursales = await obtenerSucursalesDelInforme(req);
+  const { ventanas, detalle, idsTurnoGrua } =
+    await resolverVentanasAcarreos(
+      req,
+      modo,
+      req.query.desde,
+      req.query.hasta,
+      req.query.desde_hora,
+      req.query.hasta_hora,
+      sucursales,
+    );
+
+  const where = {
+    [Op.or]: ventanas.map((ventana) => ({
+      fecha_acarreo: { [Op.gte]: ventana.desde, [Op.lte]: ventana.hasta },
+    })),
+  };
+
+  if (idsTurnoGrua) {
+    where.id_turno_grua = { [Op.in]: idsTurnoGrua };
+  }
+
+  const acarreos = await Acarreo.findAll({
+    where,
+    order: [["fecha_acarreo", "ASC"]],
+    include: [
+      {
+        model: Vehiculo,
+        attributes: ["id", "patente", "marca", "modelo", "color"],
+      },
+      {
+        model: Turno_Grua,
+        required: true,
+        include: [
+          {
+            model: Grua,
+            required: true,
+            attributes: ["id", "patente", "numero", "id_sucursal"],
+            where: {
+              id_sucursal: { [Op.in]: sucursales.map((s) => s.id) },
+            },
+            include: [{ model: Sucursal, attributes: ["id", "nombre"] }],
+          },
+          { model: Usuario, as: "chofer", attributes: ATRIBUTOS_USUARIO },
+          {
+            model: Usuario,
+            as: "enganchador",
+            attributes: ATRIBUTOS_USUARIO,
+          },
+          {
+            model: Usuario,
+            as: "supervisor",
+            attributes: ATRIBUTOS_USUARIO,
+          },
+        ],
+      },
+    ],
+  });
+
+  const nombrePersona = (usuario) =>
+    usuario ? `${usuario.nombre} ${usuario.apellido}` : null;
+
+  const movimientos = acarreos.map((acarreo) => {
+    const vehiculo = acarreo.Vehiculo;
+    const turno = acarreo.Turno_Grua;
+    const grua = turno?.Grua;
+    const chofer = nombrePersona(turno?.chofer);
+    const enganchador = nombrePersona(turno?.enganchador);
+    const personal = [chofer, enganchador].filter(Boolean).join(" / ") || null;
+
+    return {
+      id: acarreo.id,
+      fecha: acarreo.fecha_acarreo,
+      patente: vehiculo?.patente ?? "-",
+      marca: vehiculo?.marca ?? null,
+      modelo: vehiculo?.modelo ?? null,
+      color: vehiculo?.color ?? null,
+      estado: acarreo.estado,
+      motivo: acarreo.motivo,
+      direccion: acarreo.direccion,
+      numero_acta: acarreo.numero_acta,
+      tuvo_siniestro: acarreo.tuvo_siniestro,
+      fue_denuncia: acarreo.fue_denuncia,
+      sucursal: grua?.Sucursal?.nombre ?? null,
+      grua: grua
+        ? { id: grua.id, patente: grua.patente, numero: grua.numero }
+        : null,
+      chofer,
+      enganchador,
+      supervisor: nombrePersona(turno?.supervisor),
+      personal,
+      turno_grua: turno
+        ? {
+            id: turno.id,
+            turno: turno.turno,
+            fecha_inicio: turno.fecha_inicio,
+            fecha_fin: turno.fecha_fin,
+          }
+        : null,
+    };
+  });
+
+  const totales = movimientos.reduce(
+    (acc, movimiento) => ({
+      cantidad: acc.cantidad + 1,
+      enPlaya:
+        acc.enPlaya +
+        (ESTADOS_EN_PLAYA.includes(movimiento.estado) ? 1 : 0),
+      cobrados: acc.cobrados + (movimiento.estado === "COBRADO" ? 1 : 0),
+      sinCargo: acc.sinCargo + (movimiento.estado === "SIN_CARGO" ? 1 : 0),
+      egresados: acc.egresados + (movimiento.estado === "EGRESADO" ? 1 : 0),
+    }),
+    { cantidad: 0, enPlaya: 0, cobrados: 0, sinCargo: 0, egresados: 0 },
+  );
+
+  const desde = ventanas.reduce(
+    (min, ventana) =>
+      ventana.desde.getTime() < min.getTime() ? ventana.desde : min,
+    ventanas[0].desde,
+  );
+  const hasta = ventanas.reduce(
+    (max, ventana) =>
+      ventana.hasta.getTime() > max.getTime() ? ventana.hasta : max,
+    ventanas[0].hasta,
+  );
+
+  // Cuando el informe abarca varias sucursales, el PDF necesita una columna
+  // para distinguirlas. En ese caso se reemplaza "Personal" por "Sucursal".
+  const columnasPdf =
+    sucursales.length > 1
+      ? [
+          ["fecha", "Fecha/hora", 80],
+          ["patente", "Patente", 55],
+          ["vehiculo", "Vehículo", 80],
+          ["sucursal", "Sucursal", 65],
+          ["grua", "Grúa", 50],
+          ["motivo", "Motivo", 110],
+          ["estado", "Estado", 55],
+        ]
+      : undefined;
+
+  return {
+    tipo: TIPO_ACARREO,
+    modo,
+    titulo: "Acarreos realizados",
+    etiquetaFecha: "Fecha del acarreo",
+    sucursales: sucursales.map((s) => ({ id: s.id, nombre: s.nombre })),
+    sucursal: {
+      id: sucursales.length === 1 ? sucursales[0].id : null,
+      nombre:
+        sucursales.length === 1
+          ? sucursales[0].nombre
+          : `Todas las sucursales (${sucursales.length})`,
+    },
+    periodo: {
+      desde,
+      hasta,
+      descripcion:
+        modo === "TURNO"
+          ? `Turno actual · ${detalle}`
+          : `Rango de fechas · ${detalle}`,
+    },
+    columnasPdf,
+    movimientos,
+    totales,
+  };
+};
+
 /** Despacha el armado del informe según el tipo pedido. */
 const obtenerDatosInforme = async (req) => {
   const tipo = String(req.query.tipo ?? "").toUpperCase();
@@ -1206,13 +1477,17 @@ const obtenerDatosInforme = async (req) => {
     return construirDatosCobros(req);
   }
 
+  if (tipo === TIPO_ACARREO) {
+    return construirDatosAcarreos(req);
+  }
+
   if (TIPOS_MOVIMIENTO.includes(tipo)) {
     return construirDatosMovimientos(req);
   }
 
   throw new ErrorInforme(
     400,
-    "El tipo del informe debe ser ENTRADA, SALIDA o COBRO",
+    "El tipo del informe debe ser ENTRADA, SALIDA, COBRO o ACARREO",
   );
 };
 

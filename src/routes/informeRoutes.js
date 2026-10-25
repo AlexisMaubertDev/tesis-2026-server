@@ -16,10 +16,12 @@ const router = express.Router();
 //     cualquier usuario autenticado; el alcance lo define su sucursal.
 //   - Cobros (RF21 / CU12): `tipo=COBRO`. Sólo Cajero, Supervisor y Sistemas
 //     (el controlador responde `403` al resto).
+//   - Acarreos: `tipo=ACARREO`. Listado operativo de los acarreos del período,
+//     con vehículo, grúa, personal, motivo y estado.
 //
-// En ambos casos Sistemas (que administra todas) puede acotar a una sucursal
-// con el parámetro `sucursal`, y el rango de fechas es opcional (si no se
-// pasa, se usa el "turno actual" del usuario, según su rol).
+// En todos los casos Sistemas (que administra todas) puede acotar a una
+// sucursal con el parámetro `sucursal`, y el rango de fechas es opcional (si
+// no se pasa, se usa el "turno actual" del usuario, según su rol).
 router.get("/movimientos", authMiddleware, obtenerMovimientos);
 router.get("/movimientos.pdf", authMiddleware, generarInformeMovimientosPdf);
 

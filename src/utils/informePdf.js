@@ -134,11 +134,31 @@ const columnasVehiculos = () => [
   ["ultimo", "Último acarreo", 95],
 ];
 
+/**
+ * Columnas del informe de acarreos: fecha del acarreo, vehículo, grúa,
+ * personal interviniente, motivo y estado actual.
+ */
+const columnasAcarreos = () => [
+  ["fecha", "Fecha/hora", 80],
+  ["patente", "Patente", 55],
+  ["vehiculo", "Vehículo", 80],
+  ["grua", "Grúa", 50],
+  ["personal", "Personal", 95],
+  ["motivo", "Motivo", 80],
+  ["estado", "Estado", 55],
+];
+
 const ALTO_ENCABEZADO_TABLA = 20;
 const ALTO_FILA = 24;
 
 /** Columnas de la tabla según el tipo de informe. */
 const columnasDe = (datos) => {
+  // Algunos informes arman sus columnas según los datos (por ejemplo, el de
+  // acarreos agrega la sucursal cuando abarca más de una).
+  if (Array.isArray(datos.columnasPdf) && datos.columnasPdf.length > 0) {
+    return datos.columnasPdf;
+  }
+
   switch (datos.tipo) {
     case "COBRO":
       return columnasCobros(datos);
@@ -148,6 +168,8 @@ const columnasDe = (datos) => {
       return columnasTurnoGrua();
     case "VEHICULOS":
       return columnasVehiculos();
+    case "ACARREO":
+      return columnasAcarreos();
     default:
       return columnasMovimientos(datos);
   }
@@ -164,6 +186,8 @@ const tituloTablaDe = (datos) => {
       return "Detalle de acarreos";
     case "VEHICULOS":
       return "Detalle de vehículos";
+    case "ACARREO":
+      return "Detalle de acarreos";
     default:
       return "Detalle de vehículos";
   }
@@ -180,6 +204,8 @@ const mensajeVacioDe = (datos) => {
       return "No hubo acarreos durante el turno.";
     case "VEHICULOS":
       return "No hay vehículos que coincidan con los filtros aplicados.";
+    case "ACARREO":
+      return "No hay acarreos en el período seleccionado.";
     default:
       return "No hay movimientos en el período seleccionado.";
   }
@@ -221,6 +247,14 @@ const resumenDe = (datos) => {
       // vehículos, sólo lo que hizo el turno (los acarreos de la grúa).
       return [
         { etiqueta: "Acarreos", valor: String(datos.totales.cantidad ?? 0) },
+      ];
+    case "ACARREO":
+      return [
+        { etiqueta: "Acarreos", valor: String(datos.totales.cantidad ?? 0) },
+        { etiqueta: "En playa", valor: String(datos.totales.enPlaya ?? 0) },
+        { etiqueta: "Cobrados", valor: String(datos.totales.cobrados ?? 0) },
+        { etiqueta: "Sin cargo", valor: String(datos.totales.sinCargo ?? 0) },
+        { etiqueta: "Egresados", valor: String(datos.totales.egresados ?? 0) },
       ];
     default:
       return [
@@ -502,7 +536,12 @@ export const construirInformePdf = (datos) => {
       case "motivo":
         return movimiento.motivo ?? "-";
       case "grua":
-        return movimiento.grua ?? "-";
+        if (!movimiento.grua) return "-";
+        return typeof movimiento.grua === "string"
+          ? movimiento.grua
+          : (movimiento.grua.patente ?? "-");
+      case "personal":
+        return movimiento.personal ?? "-";
       case "cajero":
         return movimiento.cajero ?? "-";
       case "caja":
