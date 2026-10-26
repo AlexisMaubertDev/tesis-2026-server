@@ -1013,15 +1013,23 @@ async function main() {
       await insertarEnLotes(Cobro, cobrosParaInsertar, transaction);
 
       // Enlace inverso acarreo → cobro (la FK es circular, por eso se actualiza
-      // después de crear los cobros).
+      // después de crear los cobros). En Postgres hay que castear los literales
+      // a uuid: `CASE` devuelve text y la columna es uuid.
+      const uuidLiteral =
+        sequelize.getDialect() === "postgres"
+          ? (valor) => `'${valor}'::uuid`
+          : (valor) => `'${valor}'`;
+
       for (const lote of enLotes(enlacesCobro, 400)) {
         const casos = lote
           .map(
             ({ acarreoId, cobroId }) =>
-              `WHEN '${acarreoId}' THEN '${cobroId}'`,
+              `WHEN ${uuidLiteral(acarreoId)} THEN ${uuidLiteral(cobroId)}`,
           )
           .join(" ");
-        const ids = lote.map(({ acarreoId }) => `'${acarreoId}'`).join(",");
+        const ids = lote
+          .map(({ acarreoId }) => uuidLiteral(acarreoId))
+          .join(",");
 
         await sequelize.query(
           `UPDATE acarreos SET id_cobro = CASE id ${casos} END WHERE id IN (${ids})`,
@@ -1097,6 +1105,34 @@ async function main() {
       resumen.cobros += cobros.length;
     }
 
+    // Usuario de Sistemas (administra todas las sucursales). No pertenece a
+    // ninguna sucursal en particular; se lo asigna a la primera para cumplir
+    // con la FK obligatoria de `usuarios.id_sucursal`.
+    const sucursalSistemas = await Sucursal.findOne({
+      where: { nombre: SUCURSALES[0].nombre },
+      transaction,
+    });
+
+    await Usuario.create(
+      {
+        id: randomUUID(),
+        nombre: "Sistemas",
+        apellido: "Sistemas",
+        legajo: 1001,
+        dni: "12345678",
+        email: "sistemas@parkcontrol.com",
+        rol: "SISTEMAS",
+        password: await bcrypt.hash("1234", 10),
+        intentos_restantes: 3,
+        numero_turno: null,
+        trabaja_domingo: false,
+        bloqueado: false,
+        id_sucursal: sucursalSistemas.id,
+      },
+      { transaction },
+    );
+    resumen.usuarios += 1;
+
     if (SIMULAR) {
       await transaction.rollback();
       console.log("\nSIMULACIÓN: se revirtieron todos los cambios.\n");
@@ -1112,8 +1148,9 @@ async function main() {
       "Supervisores: Norte DNI 41000001 / Centro DNI 41000018 / Oeste DNI 41000035",
     );
     console.log("Cajeros: DNI 41000003, 41000004, 41000005, etc.");
+    console.log("Sistemas: DNI 12345678 / contraseña 1234 (cambiar en producción)");
     console.log(
-      "Los legajos van de 2001 a 2051 y los DNI de 41000001 a 41000051.\n",
+      "Los legajos van de 1001 (Sistemas) y de 2001 a 2051; los DNI de 41000001 a 41000051.\n",
     );
   } catch (error) {
     if (!transaction.finished) await transaction.rollback();

@@ -29,10 +29,15 @@ const Auditoria = sequelize.define(
       allowNull: true,
     },
 
+    // Las acciones tienen que estar todas listadas acá: en Postgres un ENUM es
+    // estricto y rechaza cualquier valor que no exista en el tipo. En MySQL,
+    // con el modo no estricto, un valor desconocido se guardaba como cadena
+    // vacía sin dar error, así que el problema recién se notó al migrar.
     accion: {
       type: DataTypes.ENUM(
         "CREAR",
         "EDITAR",
+        "ACTUALIZAR",
         "ELIMINAR",
         "LOGIN",
         "LOGOUT",
@@ -40,6 +45,19 @@ const Auditoria = sequelize.define(
         "FINALIZAR_TURNO",
         "ASIGNAR",
         "DESASIGNAR",
+        "CAMBIAR_ESTADO",
+        "REGISTRAR_COBRO",
+        "INGRESAR_A_PLAYA",
+        "EGRESAR_DE_PLAYA",
+        "SALIDA_SIN_CARGO",
+        "ASIGNAR_TURNO_BARRERA",
+        "FINALIZAR_TURNO_BARRERA",
+        "FINALIZAR_TODOS_TURNOS_BARRERA",
+        "AGREGAR_INCIDENCIA_ACARREO",
+        "AGREGAR_INCIDENCIA_BARRERA",
+        "AGREGAR_INCIDENCIA_TURNO_CAJA",
+        "BLOQUEAR_USUARIO",
+        "DESBLOQUEAR_USUARIO",
         "OTRO",
       ),
       allowNull: false,

@@ -1,7 +1,7 @@
 import app from "./app.js";
 import sequelize from "./config/db.js";
 
-const PORT = 1337;
+const PORT = Number(process.env.PORT) || 1337;
 
 const start = async () => {
   try {
@@ -24,4 +24,11 @@ const start = async () => {
   }
 };
 
-start();
+// En Vercel la función la invoca la plataforma (no hay que abrir un puerto);
+// en local sí levantamos el servidor. Vercel define `VERCEL=1`.
+if (!process.env.VERCEL) {
+  start();
+}
+
+// Vercel detecta la app de Express a partir de este export.
+export default app;
