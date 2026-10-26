@@ -27,11 +27,23 @@ const app = express();
 app.set("trust proxy", 1);
 
 // Orígenes permitidos para CORS (lista separada por comas en CORS_ORIGINS).
-// Por defecto, el dev server de Vite.
-const origenesPermitidos = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
+// En producción el front web vive en Vercel; en local, el dev server de Vite.
+const origenWebProduccion = "https://tesis-2026-web.vercel.app";
+const origenesPorDefecto =
+  process.env.NODE_ENV === "production"
+    ? origenWebProduccion
+    : "http://localhost:5173";
+
+const origenesPermitidos = (process.env.CORS_ORIGINS ?? origenesPorDefecto)
   .split(",")
   .map((origen) => origen.trim())
   .filter(Boolean);
+
+// Si CORS_ORIGINS quedó con el valor local (o no incluye la web), el preflight
+// del front de producción fallaría. En Vercel agregamos siempre ese origen.
+if (process.env.VERCEL && !origenesPermitidos.includes(origenWebProduccion)) {
+  origenesPermitidos.push(origenWebProduccion);
+}
 
 app.use(
   cors({
