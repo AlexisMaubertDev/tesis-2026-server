@@ -1,4 +1,6 @@
 import { Sequelize } from "sequelize";
+import pg from "pg";
+import mysql2 from "mysql2";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -47,6 +49,11 @@ const maxPool =
 
 const opciones = {
   dialect: dialecto,
+  // Sequelize carga el driver del dialecto con un require dinámico. El tracer
+  // de Vercel (@vercel/nft) no lo detecta, así que el bundle quedaba sin `pg`
+  // y la función crasheaba al importar. Importarlos estáticamente y pasarlos
+  // como `dialectModule` garantiza que el driver viaje en el deployment.
+  dialectModule: dialecto === "postgres" ? pg : mysql2,
   port: puerto,
   logging: process.env.DB_LOGGING === "true" ? console.log : false,
   pool: {
