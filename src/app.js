@@ -21,6 +21,11 @@ dotenv.config();
 
 const app = express();
 
+// Vercel (y cualquier proxy inverso) agrega X-Forwarded-For. Sin esto,
+// express-rate-limit ve la IP del proxy y todos los usuarios comparten el
+// mismo límite (el login permite 10 intentos cada 15 minutos).
+app.set("trust proxy", 1);
+
 // Orígenes permitidos para CORS (lista separada por comas en CORS_ORIGINS).
 // Por defecto, el dev server de Vite.
 const origenesPermitidos = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
