@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
 import sequelize from "../src/config/db.js";
 import {

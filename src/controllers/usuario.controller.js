@@ -1,6 +1,6 @@
 import { Caja, Turno_Caja, Turno_Grua, Turno_Barrera, Turno_Barrera_Usuario, Usuario } from "../models/index.js";
 import Sucursal from "../models/Sucursal.model.js";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { crearEntidad } from "../utils/crearEntidad.js";
 import sequelize from "../config/db.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
@@ -136,7 +136,7 @@ export const crearUsuario = async (req, res) => {
       });
     }
 
-    //encripta la contraseña con bcrypt
+    //encripta la contraseña con bcryptjs
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
