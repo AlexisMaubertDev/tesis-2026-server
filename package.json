@@ -24,6 +24,8 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "db:sync": "node scripts/sync_schema.js",
+    "db:sync-operaciones": "node scripts/crear_tabla_operaciones_sync.js",
+    "db:limpiar-operaciones": "node scripts/limpiar_operaciones_sync.js",
     "db:auditorias": "node scripts/actualizar_enum_auditorias.js",
     "seed:alfa": "node scripts/seed_datos_alfa.js",
     "seed:alfa:simular": "node scripts/seed_datos_alfa.js --simular"

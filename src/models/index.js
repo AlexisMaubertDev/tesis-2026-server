@@ -12,6 +12,7 @@ import Cobro from "./Cobro.model.js";
 import Tarifa from "./Tarifa.model.js";
 import Auditoria from "./Auditoria.model.js";
 import Turno_Barrera_Usuario from "./TurnoBarreraUsuario.model.js";
+import SyncOperation from "./SyncOperation.model.js";
 
 //Usuario pertenece a una sucursal
 Usuario.belongsTo(Sucursal, { foreignKey: "id_sucursal" });
@@ -156,6 +157,10 @@ Auditoria.belongsTo(Usuario, {
   foreignKey: "id_usuario",
 });
 
+// Operaciones idempotentes de la outbox offline (ver idempotencyMiddleware).
+Usuario.hasMany(SyncOperation, { foreignKey: "id_usuario" });
+SyncOperation.belongsTo(Usuario, { foreignKey: "id_usuario" });
+
 export {
   Usuario,
   Vehiculo,
@@ -171,4 +176,5 @@ export {
   Grua,
   Barrera,
   Auditoria,
+  SyncOperation,
 };

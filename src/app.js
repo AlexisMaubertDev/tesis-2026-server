@@ -16,6 +16,7 @@ import tarifaRoutes from "./routes/tarifaRoutes.js";
 import informeRoutes from "./routes/informeRoutes.js";
 import testRoutes from "./routes/testRoutes.js";
 import { apiRateLimiter } from "./middlewares/rateLimitMiddleware.js";
+import sequelize from "./config/db.js";
 
 dotenv.config();
 
@@ -58,6 +59,66 @@ app.use(
   }),
 );
 app.use(express.json());
+
+/**
+ * GET /api/health — estado de la API y de la base, sin autenticación.
+ *
+ * La web y la app lo usan para distinguir "no hay red" de "la API está caída":
+ * si responde 200, el modo offline es por conectividad del dispositivo; si
+ * responde 503 (o no responde), el offline es por servidor.
+ *
+ * Va antes del rate limiter para que un health check periódico no consuma el
+ * límite general, y no se cachea (Vercel/CDN incluidos).
+ */
+const consultarBase = async (timeoutMs) => {
+  let timer;
+  const timeout = new Promise((_, rechazar) => {
+    timer = setTimeout(
+      () => rechazar(new Error("Timeout al consultar la base")),
+      timeoutMs,
+    );
+  });
+
+  try {
+    await Promise.race([sequelize.query("SELECT 1"), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+app.get("/api/health", async (_req, res) => {
+  const inicio = Date.now();
+
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+
+  try {
+    const timeoutMs = Number(process.env.HEALTH_DB_TIMEOUT_MS) || 5000;
+    await consultarBase(timeoutMs);
+
+    return res.status(200).json({
+      success: true,
+      status: "ok",
+      database: "up",
+      timestamp: new Date().toISOString(),
+      uptime_s: Math.round(process.uptime()),
+      latency_ms: Date.now() - inicio,
+    });
+  } catch (error) {
+    console.error("Health check: base de datos no disponible:", error.message);
+
+    return res.status(503).json({
+      success: false,
+      status: "degraded",
+      database: "down",
+      timestamp: new Date().toISOString(),
+      latency_ms: Date.now() - inicio,
+      message: "Base de datos no disponible",
+    });
+  }
+});
+
 app.use("/api", apiRateLimiter);
 
 app.use("/api/auth", authRoutes);

@@ -1,5 +1,6 @@
 import express from "express";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { idempotencyMiddleware } from "../middlewares/idempotencyMiddleware.js";
 import {
   cajeroMiddleware,
   supervisorMiddleware,
@@ -63,12 +64,25 @@ router
     supervisorMiddleware,
     obtenerTurnosPorFecha,
   ) //Turnos por fecha de apertura (AAAA-MM-DD)
-  .post("/empezar_turno", authMiddleware, cajeroMiddleware, empezarTurnoCaja)
-  .put("/cerrar_turno/:id", authMiddleware, cajeroMiddleware, cerrarTurnoCaja)
+  .post(
+    "/empezar_turno",
+    authMiddleware,
+    cajeroMiddleware,
+    idempotencyMiddleware,
+    empezarTurnoCaja,
+  )
+  .put(
+    "/cerrar_turno/:id",
+    authMiddleware,
+    cajeroMiddleware,
+    idempotencyMiddleware,
+    cerrarTurnoCaja,
+  )
   .put(
     "/:id/incidencias",
     authMiddleware,
     supervisorMiddleware,
+    idempotencyMiddleware,
     agregarIncidenciaTurnoCaja,
   );
 

@@ -1,5 +1,6 @@
 import express from "express";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { idempotencyMiddleware } from "../middlewares/idempotencyMiddleware.js";
 import {
   grueroMiddleware,
   playaMiddleware,
@@ -22,17 +23,36 @@ router
   // (igual que la tabla de vehículos).
   .get("/patente/:patente", authMiddleware, getAcarreosPorPatente)
   .get("/", authMiddleware, supervisorMiddleware, getAcarreos)
-  .post("/", authMiddleware, grueroMiddleware, crearAcarreo)
+  .post("/", authMiddleware, grueroMiddleware, idempotencyMiddleware, crearAcarreo)
   // Ingreso/egreso de playa a cargo de la barrera (playeros).
-  .put("/:id/ingresar", authMiddleware, playaMiddleware, ingresarAcarreoAPlaya)
-  .put("/:id/egresar", authMiddleware, playaMiddleware, egresarAcarreo)
+  .put(
+    "/:id/ingresar",
+    authMiddleware,
+    playaMiddleware,
+    idempotencyMiddleware,
+    ingresarAcarreoAPlaya,
+  )
+  .put(
+    "/:id/egresar",
+    authMiddleware,
+    playaMiddleware,
+    idempotencyMiddleware,
+    egresarAcarreo,
+  )
   // Salida sin cargo: sólo el supervisor (o sistemas) puede autorizarla.
-  .put("/:id/sin-cargo", authMiddleware, supervisorMiddleware, sacarSinCargo)
+  .put(
+    "/:id/sin-cargo",
+    authMiddleware,
+    supervisorMiddleware,
+    idempotencyMiddleware,
+    sacarSinCargo,
+  )
   // Incidencia sobre el acarreo (el vehículo): sólo supervisor (o sistemas).
   .put(
     "/:id/incidencias",
     authMiddleware,
     supervisorMiddleware,
+    idempotencyMiddleware,
     agregarIncidenciaAcarreo,
   );
 

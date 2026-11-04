@@ -1,6 +1,7 @@
 import express from "express";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { cajeroMiddleware } from "../middlewares/rolMiddleware.js";
+import { idempotencyMiddleware } from "../middlewares/idempotencyMiddleware.js";
 import {
   crearCobro,
   obtenerCobrosDeMiTurno,
@@ -30,6 +31,12 @@ router.get(
 router.get("/:id/comprobante.pdf", authMiddleware, generarComprobanteCobro);
 
 // Registrar un cobro: sólo cajeros (o supervisor/sistemas).
-router.post("/", authMiddleware, cajeroMiddleware, crearCobro);
+router.post(
+  "/",
+  authMiddleware,
+  cajeroMiddleware,
+  idempotencyMiddleware,
+  crearCobro,
+);
 
 export default router;
