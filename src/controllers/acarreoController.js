@@ -13,6 +13,10 @@ import {
   Vehiculo,
 } from "../models/index.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
+import {
+  formatoFechaOperacion,
+  resolverFechaOperacion,
+} from "../utils/fechas.js";
 
 // Datos públicos de un usuario (nunca la contraseña ni los campos internos).
 // Lo usan los includes de acarreos (chofer, enganchador, supervisor, barrera).
@@ -27,7 +31,12 @@ export const crearAcarreo = async (req, res) => {
     tuvoSiniestro,
     fueDenuncia,
     damages,
+    id_turno_grua,
   } = req.body;
+
+  // Fecha/hora local del acarreo: la outbox offline la manda en el body
+  // (`fecha` ISO con offset); sin ella se usa la hora del servidor.
+  const { fecha: fechaAcarreo } = resolverFechaOperacion(req.body);
 
   let transaction;
 
@@ -54,13 +63,34 @@ export const crearAcarreo = async (req, res) => {
       });
     }
 
-    const turno_grua = await Turno_Grua.findOne({
-      where: {
-        [Op.or]: [{ id_chofer: user.id }, { id_enganchador: user.id }],
-        activo: true,
-      },
-      transaction,
-    });
+    // Turno de grúa del acarreo. En modo offline el cliente puede informar
+    // `id_turno_grua` (si arrancó el turno con conexión); si no viene o no
+    // existe, se busca el turno activo del usuario como siempre.
+    let turno_grua = null;
+
+    if (typeof id_turno_grua === "string" && id_turno_grua.trim() !== "") {
+      turno_grua = await Turno_Grua.findByPk(id_turno_grua.trim(), {
+        transaction,
+      });
+    }
+
+    if (!turno_grua) {
+      turno_grua = await Turno_Grua.findOne({
+        where: {
+          [Op.or]: [{ id_chofer: user.id }, { id_enganchador: user.id }],
+          activo: true,
+        },
+        transaction,
+      });
+    }
+
+    if (!turno_grua) {
+      await transaction.rollback();
+      return res.status(409).json({
+        success: false,
+        message: "Necesitás un turno de grúa activo para registrar acarreos",
+      });
+    }
 
     const acarreo = await Acarreo.create(
       {
@@ -72,7 +102,7 @@ export const crearAcarreo = async (req, res) => {
         tuvo_siniestro: tuvoSiniestro,
         fue_denuncia: fueDenuncia,
         damages,
-        fecha_acarreo: Date.now(),
+        fecha_acarreo: fechaAcarreo,
         estado: "ACARREADO",
       },
       { transaction },
@@ -246,6 +276,9 @@ export const ingresarAcarreoAPlaya = async (req, res) => {
   try {
     const { id } = req.params;
 
+    // Fecha/hora local del ingreso (puede llegar de la outbox offline).
+    const { fecha: fechaIngreso } = resolverFechaOperacion(req.body);
+
     const acarreo = await Acarreo.findByPk(id);
 
     if (!acarreo) {
@@ -265,7 +298,7 @@ export const ingresarAcarreoAPlaya = async (req, res) => {
 
     await acarreo.update({
       estado: "INGRESADO",
-      fecha_ingreso: new Date(),
+      fecha_ingreso: fechaIngreso,
       ...(turnoBarrera ? { id_turno_barrera: turnoBarrera.id } : {}),
     });
 
@@ -299,6 +332,9 @@ export const egresarAcarreo = async (req, res) => {
   try {
     const { id } = req.params;
 
+    // Fecha/hora local del egreso (puede llegar de la outbox offline).
+    const { fecha: fechaEgreso } = resolverFechaOperacion(req.body);
+
     const acarreo = await Acarreo.findByPk(id);
 
     if (!acarreo) {
@@ -314,7 +350,7 @@ export const egresarAcarreo = async (req, res) => {
       });
     }
 
-    await acarreo.update({ estado: "EGRESADO", fecha_egreso: new Date() });
+    await acarreo.update({ estado: "EGRESADO", fecha_egreso: fechaEgreso });
 
     await registrarAuditoria({
       req,
@@ -349,6 +385,9 @@ export const sacarSinCargo = async (req, res) => {
     const { id } = req.params;
     const { motivo } = req.body;
 
+    // Fecha/hora local de la salida sin cargo (puede llegar de la outbox).
+    const { fecha: fechaEgreso } = resolverFechaOperacion(req.body);
+
     if (typeof motivo !== "string" || motivo.trim() === "") {
       return res.status(400).json({
         success: false,
@@ -373,7 +412,9 @@ export const sacarSinCargo = async (req, res) => {
     }
 
     const fecha = new Date().toISOString();
-    const incidencia = `Salida sin cargo (${fecha}): ${motivo.trim()}`;
+    const incidencia = `Salida sin cargo (${formatoFechaOperacion(
+      fechaEgreso,
+    )}): ${motivo.trim()}`;
 
     // El motivo se acumula como incidencia del acarreo (el mismo canal que usa
     // el supervisor para el resto de las incidencias).
@@ -384,7 +425,7 @@ export const sacarSinCargo = async (req, res) => {
 
     await acarreo.update({
       estado: "SIN_CARGO",
-      fecha_egreso: new Date(),
+      fecha_egreso: fechaEgreso,
       incidencias: incidenciasNuevas,
     });
 

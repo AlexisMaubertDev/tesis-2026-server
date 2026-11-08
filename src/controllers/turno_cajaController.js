@@ -12,12 +12,17 @@ import {
 import { crearEntidad } from "../utils/crearEntidad.js";
 import { editarEntidad } from "../utils/editarEntidad.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
+import { resolverFechaOperacion } from "../utils/fechas.js";
 import { armarInformeCobros } from "./informeController.js";
 import { construirInformePdf, formatoFecha } from "../utils/informePdf.js";
 
 export const empezarTurnoCaja = async (req, res) => {
   const usuario = req.user;
   const { id_caja, turno } = req.body;
+
+  // La apertura usa la fecha/hora local del turno (outbox offline envía
+  // `fecha` en el body); sin ella es la hora del servidor, como siempre.
+  const { fecha: apertura } = resolverFechaOperacion(req.body);
 
   let transaction;
 
@@ -49,7 +54,7 @@ export const empezarTurnoCaja = async (req, res) => {
 
     const turnoCaja = await crearEntidad({
       modelo: Turno_Caja,
-      datos: { id_caja, turno, id_usuario: usuario.id, apertura: new Date() },
+      datos: { id_caja, turno, id_usuario: usuario.id, apertura },
       entidad: "TURNO_CAJA",
       descripcion: `Empezó el turno de ${turno} para la caja con ID ${id_caja}`,
       req,
@@ -124,6 +129,14 @@ export const cerrarTurnoCaja = async (req, res) => {
       });
     }
 
+    // El cierre usa la fecha/hora local del turno (outbox offline envía
+    // `fecha` en el body). Si el cliente manda un cierre anterior a la
+    // apertura (error de datos), se corrige a la hora del servidor.
+    const apertura = new Date(turnoCaja.apertura);
+    const { fecha: cierreResuelta } = resolverFechaOperacion(req.body);
+    const cierre =
+      apertura.getTime() > cierreResuelta.getTime() ? new Date() : cierreResuelta;
+
     // Un cajero sólo puede cerrar sus propios turnos. Supervisor y Sistemas
     // conservan el acceso administrativo para cerrar turnos de la sucursal.
     if (usuario.rol === "CAJERO" && turnoCaja.id_usuario !== usuario.id) {
@@ -153,7 +166,7 @@ export const cerrarTurnoCaja = async (req, res) => {
       modelo: Turno_Caja,
       id,
       datos: {
-        cierre: new Date(),
+        cierre,
         activo: false,
         numero_sobre: numero_sobre?.trim() || null,
         efectivo_contado: efectivoContado,

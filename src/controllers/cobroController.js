@@ -14,6 +14,7 @@ import {
   MAX_ESTADIAS,
   calcularEstadias,
 } from "../utils/estadias.js";
+import { resolverFechaOperacion } from "../utils/fechas.js";
 import PDFDocument from "pdfkit";
 
 // Formatea una fecha como `dd/MM/yyyy HH:mm` en hora local del servidor.
@@ -126,7 +127,11 @@ export const obtenerPreviewCobro = async (req, res) => {
  * `Cobro`, pasa el acarreo a COBRADO y lo vincula (`id_cobro`).
  */
 export const crearCobro = async (req, res) => {
-  const { id_acarreo, efectivo, mp, numero_factura } = req.body;
+  const { id_acarreo, efectivo, mp, numero_factura, id_turno_caja } = req.body;
+
+  // Fecha/hora local del cobro: la outbox offline la manda en el body; sin
+  // ella el cobro se registra con la hora del servidor (como siempre).
+  const { fecha: fechaCobro } = resolverFechaOperacion(req.body);
 
   if (!id_acarreo) {
     return res
@@ -149,11 +154,24 @@ export const crearCobro = async (req, res) => {
   try {
     transaction = await sequelize.transaction();
 
-    // El cobro se asocia al turno de caja abierto del cajero.
-    const turnoCaja = await Turno_Caja.findOne({
-      where: { id_usuario: req.user.id, activo: true },
-      transaction,
-    });
+    // El cobro se asocia al turno de caja abierto del cajero. En offline el
+    // cliente puede informar `id_turno_caja`; si no viene o ya no está activo,
+    // se busca el turno abierto del usuario.
+    let turnoCaja = null;
+
+    if (typeof id_turno_caja === "string" && id_turno_caja.trim() !== "") {
+      turnoCaja = await Turno_Caja.findOne({
+        where: { id: id_turno_caja.trim(), activo: true },
+        transaction,
+      });
+    }
+
+    if (!turnoCaja) {
+      turnoCaja = await Turno_Caja.findOne({
+        where: { id_usuario: req.user.id, activo: true },
+        transaction,
+      });
+    }
 
     if (!turnoCaja) {
       await transaction.rollback();
@@ -208,7 +226,10 @@ export const crearCobro = async (req, res) => {
       });
     }
 
-    const estadiasNum = calcularEstadias(acarreo.fecha_acarreo);
+    // Las estadías se calculan con el reloj hasta la fecha del cobro local:
+    // un cobro sincronizado días después no acumula estadías que no existían
+    // cuando el cajero cobró.
+    const estadiasNum = calcularEstadias(acarreo.fecha_acarreo, fechaCobro);
 
     const totalNum = aImporte(
       Number(tarifa.acarreo) + Number(tarifa.estadia) * estadiasNum,
@@ -229,7 +250,7 @@ export const crearCobro = async (req, res) => {
         total: totalNum,
         efectivo: efectivoNum,
         mp: mpNum,
-        fecha: new Date(),
+        fecha: fechaCobro,
         estadias: estadiasNum,
         numero_factura:
           typeof numero_factura === "string" && numero_factura.trim() !== ""
