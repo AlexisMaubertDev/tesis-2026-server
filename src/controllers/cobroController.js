@@ -16,6 +16,11 @@ import {
 } from "../utils/estadias.js";
 import { resolverFechaOperacion } from "../utils/fechas.js";
 import { esUuidValido } from "../utils/uuid.js";
+import {
+  acumularIncidencia,
+  esCargadoSinSistema,
+  incidenciaSinSistema,
+} from "../utils/sinSistema.js";
 import PDFDocument from "pdfkit";
 
 // Formatea una fecha como `dd/MM/yyyy HH:mm` en hora local del servidor.
@@ -243,7 +248,21 @@ export const crearCobro = async (req, res) => {
       Number(tarifa.acarreo) + Number(tarifa.estadia) * estadiasNum,
     );
 
-    if (aImporte(efectivoNum + mpNum) !== totalNum) {
+    // Cobro cargado sin sistema (sincronización de la outbox): el cajero cobra
+    // a ojo (sin servidor) y el sistema guarda lo que él cobró. Si el recálculo
+    // del servidor da más, queda la incidencia con el faltante en el acarreo.
+    const sinSistema = esCargadoSinSistema(req);
+    const pagadoNum = aImporte(efectivoNum + mpNum);
+    let detalleSinSistema = null;
+
+    if (sinSistema) {
+      const faltanteNum = aImporte(totalNum - pagadoNum);
+
+      detalleSinSistema =
+        faltanteNum > 0.004
+          ? `Cobro con ${formatoImporte(faltanteNum)} de menos según el cálculo del servidor (declarado ${formatoImporte(pagadoNum)})`
+          : "Cobro coincidente con el cálculo del servidor";
+    } else if (pagadoNum !== totalNum) {
       await transaction.rollback();
       return res.status(400).json({
         success: false,
@@ -255,7 +274,9 @@ export const crearCobro = async (req, res) => {
       {
         id_turno_caja: turnoCaja.id,
         id_acarreo: acarreo.id,
-        total: totalNum,
+        // Sin sistema, el total es lo que el cajero realmente cobró; con
+        // sistema, el recálculo coincide por la validación de arriba.
+        total: sinSistema ? pagadoNum : totalNum,
         efectivo: efectivoNum,
         mp: mpNum,
         fecha: fechaCobro,
@@ -268,6 +289,17 @@ export const crearCobro = async (req, res) => {
       { transaction },
     );
 
+    // La incidencia del cobro sin sistema se suma al acarreo (el mismo canal
+    // que las demás: alta, ingreso y salida también dejan la suya ahí).
+    if (sinSistema) {
+      const textoCobro = incidenciaSinSistema("Cobro", fechaCobro, detalleSinSistema);
+
+      await acarreo.update(
+        { incidencias: acumularIncidencia(acarreo.incidencias, textoCobro) },
+        { transaction },
+      );
+    }
+
     await acarreo.update(
       { estado: "COBRADO", id_cobro: cobro.id },
       { transaction },
@@ -279,7 +311,7 @@ export const crearCobro = async (req, res) => {
       accion: "REGISTRAR_COBRO",
       entidad: "COBRO",
       idEntidad: cobro.id,
-      descripcion: `Se registró el cobro del acarreo ${acarreo.id} por $${totalNum}`,
+      descripcion: `Se registró el cobro del acarreo ${acarreo.id} por $${sinSistema ? pagadoNum : totalNum}${sinSistema && detalleSinSistema ? ` (sincronizado sin sistema: ${detalleSinSistema})` : ""}`,
       antes: { estado: "INGRESADO" },
       despues: { estado: "COBRADO", cobro: cobro.toJSON() },
     });

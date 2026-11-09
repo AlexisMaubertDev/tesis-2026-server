@@ -18,6 +18,11 @@ import {
   resolverFechaOperacion,
 } from "../utils/fechas.js";
 import { esUuidValido } from "../utils/uuid.js";
+import {
+  acumularIncidencia,
+  esCargadoSinSistema,
+  incidenciaSinSistema,
+} from "../utils/sinSistema.js";
 
 // Datos públicos de un usuario (nunca la contraseña ni los campos internos).
 // Lo usan los includes de acarreos (chofer, enganchador, supervisor, barrera).
@@ -124,6 +129,17 @@ export const crearAcarreo = async (req, res) => {
       },
       { transaction },
     );
+
+    // Operación cargada sin sistema (sincronización de la outbox): queda como
+    // incidencia del acarreo, que es donde el supervisor ve el historial.
+    if (esCargadoSinSistema(req)) {
+      await acarreo.update(
+        {
+          incidencias: incidenciaSinSistema("Alta de acarreo", fechaAcarreo),
+        },
+        { transaction },
+      );
+    }
     if (!acarreo) {
       await transaction.rollback();
       return res.status(400).json({
@@ -300,27 +316,6 @@ export const ingresarAcarreoAPlaya = async (req, res) => {
         .json({ success: false, message: "Acarreo no encontrado" });
     }
 
-    // Un id no-UUID rompería el findByPk en Postgres (500): se corta antes.
-    if (!esUuidValido(id)) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Acarreo no encontrado" });
-    }
-
-    // Un id no-UUID rompería el findByPk en Postgres (500): se corta antes.
-    if (!esUuidValido(id)) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Acarreo no encontrado" });
-    }
-
-    // Un id no-UUID rompería el findByPk en Postgres (500): se corta antes.
-    if (!esUuidValido(id)) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Acarreo no encontrado" });
-    }
-
     // Fecha/hora local del ingreso (puede llegar de la outbox offline).
     const { fecha: fechaIngreso } = resolverFechaOperacion(req.body);
 
@@ -341,10 +336,24 @@ export const ingresarAcarreoAPlaya = async (req, res) => {
 
     const turnoBarrera = await obtenerTurnoBarreraActivo(req.user.id);
 
+    // Operación cargada sin sistema (sincronización de la outbox): queda como
+    // incidencia del acarreo.
+    const incidenciaIngreso = esCargadoSinSistema(req)
+      ? incidenciaSinSistema("Ingreso a playa", fechaIngreso)
+      : null;
+
     await acarreo.update({
       estado: "INGRESADO",
       fecha_ingreso: fechaIngreso,
       ...(turnoBarrera ? { id_turno_barrera: turnoBarrera.id } : {}),
+      ...(incidenciaIngreso
+        ? {
+            incidencias: acumularIncidencia(
+              acarreo.incidencias,
+              incidenciaIngreso,
+            ),
+          }
+        : {}),
     });
 
     await registrarAuditoria({
@@ -377,6 +386,13 @@ export const egresarAcarreo = async (req, res) => {
   try {
     const { id } = req.params;
 
+    // Un id no-UUID rompería el findByPk en Postgres (500): se corta antes.
+    if (!esUuidValido(id)) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Acarreo no encontrado" });
+    }
+
     // Fecha/hora local del egreso (puede llegar de la outbox offline).
     const { fecha: fechaEgreso } = resolverFechaOperacion(req.body);
 
@@ -395,7 +411,24 @@ export const egresarAcarreo = async (req, res) => {
       });
     }
 
-    await acarreo.update({ estado: "EGRESADO", fecha_egreso: fechaEgreso });
+    // Operación cargada sin sistema (sincronización de la outbox): queda como
+    // incidencia del acarreo.
+    const incidenciaEgreso = esCargadoSinSistema(req)
+      ? incidenciaSinSistema("Salida de playa", fechaEgreso)
+      : null;
+
+    await acarreo.update({
+      estado: "EGRESADO",
+      fecha_egreso: fechaEgreso,
+      ...(incidenciaEgreso
+        ? {
+            incidencias: acumularIncidencia(
+              acarreo.incidencias,
+              incidenciaEgreso,
+            ),
+          }
+        : {}),
+    });
 
     await registrarAuditoria({
       req,
@@ -459,7 +492,7 @@ export const sacarSinCargo = async (req, res) => {
     const fecha = new Date().toISOString();
     const incidencia = `Salida sin cargo (${formatoFechaOperacion(
       fechaEgreso,
-    )}): ${motivo.trim()}`;
+    )})${esCargadoSinSistema(req) ? ", cargado en sincronización (sin sistema)" : ""}: ${motivo.trim()}`;
 
     // El motivo se acumula como incidencia del acarreo (el mismo canal que usa
     // el supervisor para el resto de las incidencias).
