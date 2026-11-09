@@ -13,6 +13,7 @@ import { crearEntidad } from "../utils/crearEntidad.js";
 import { editarEntidad } from "../utils/editarEntidad.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
 import { resolverFechaOperacion } from "../utils/fechas.js";
+import { esUuidValido } from "../utils/uuid.js";
 import { armarInformeCobros } from "./informeController.js";
 import { construirInformePdf, formatoFecha } from "../utils/informePdf.js";
 
@@ -118,6 +119,14 @@ export const cerrarTurnoCaja = async (req, res) => {
   const { id } = req.params;
   const { numero_sobre, efectivo_contado } = req.body;
   const usuario = req.user;
+
+  // Un id no-UUID rompería el findByPk en Postgres (500): se corta antes.
+  if (!esUuidValido(id)) {
+    return res.status(404).json({
+      success: false,
+      message: "No se encontró el turno de caja",
+    });
+  }
 
   try {
     const turnoCaja = await Turno_Caja.findByPk(id);

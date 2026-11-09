@@ -17,6 +17,7 @@ import {
   formatoFechaOperacion,
   resolverFechaOperacion,
 } from "../utils/fechas.js";
+import { esUuidValido } from "../utils/uuid.js";
 
 // Datos públicos de un usuario (nunca la contraseña ni los campos internos).
 // Lo usan los includes de acarreos (chofer, enganchador, supervisor, barrera).
@@ -50,6 +51,22 @@ export const crearAcarreo = async (req, res) => {
       modelo: vehiculo.modelo.toUpperCase(),
       color: vehiculo.color.toUpperCase(),
     };
+
+    // numero_acta es un entero (o nulo): en Postgres un string no numérico
+    // rompe el insert con un 500 feo; se valida antes (400).
+    let numeroActa = numero_acta ?? null;
+
+    if (numeroActa !== null) {
+      numeroActa = Number(numeroActa);
+
+      if (!Number.isInteger(numeroActa) || numeroActa < 0) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "El número de acta debe ser un entero (o vacío)",
+        });
+      }
+    }
 
     const vehiculo_creado = await Vehiculo.create(parsedVehiculo, {
       transaction,
@@ -98,7 +115,7 @@ export const crearAcarreo = async (req, res) => {
         id_turno_grua: turno_grua.id,
         direccion,
         motivo,
-        numero_acta,
+        numero_acta: numeroActa,
         tuvo_siniestro: tuvoSiniestro,
         fue_denuncia: fueDenuncia,
         damages,
@@ -275,6 +292,34 @@ const obtenerTurnoBarreraActivo = async (idUsuario) => {
 export const ingresarAcarreoAPlaya = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Un id no-UUID rompería el findByPk en Postgres (500): se corta antes.
+    if (!esUuidValido(id)) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Acarreo no encontrado" });
+    }
+
+    // Un id no-UUID rompería el findByPk en Postgres (500): se corta antes.
+    if (!esUuidValido(id)) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Acarreo no encontrado" });
+    }
+
+    // Un id no-UUID rompería el findByPk en Postgres (500): se corta antes.
+    if (!esUuidValido(id)) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Acarreo no encontrado" });
+    }
+
+    // Un id no-UUID rompería el findByPk en Postgres (500): se corta antes.
+    if (!esUuidValido(id)) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Acarreo no encontrado" });
+    }
 
     // Fecha/hora local del ingreso (puede llegar de la outbox offline).
     const { fecha: fechaIngreso } = resolverFechaOperacion(req.body);

@@ -15,6 +15,7 @@ import {
   calcularEstadias,
 } from "../utils/estadias.js";
 import { resolverFechaOperacion } from "../utils/fechas.js";
+import { esUuidValido } from "../utils/uuid.js";
 import PDFDocument from "pdfkit";
 
 // Formatea una fecha como `dd/MM/yyyy HH:mm` en hora local del servidor.
@@ -137,6 +138,13 @@ export const crearCobro = async (req, res) => {
     return res
       .status(400)
       .json({ success: false, message: "Falta el acarreo a cobrar" });
+  }
+
+  // Un id no-UUID rompería el findByPk en Postgres (500): se corta antes.
+  if (!esUuidValido(id_acarreo)) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Acarreo no encontrado" });
   }
 
   if (!esImporteValido(efectivo) || !esImporteValido(mp)) {

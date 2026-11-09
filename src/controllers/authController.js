@@ -8,7 +8,10 @@ dotenv.config();
 
 export const login = async (req, res) => {
   try {
-    const { dni, password } = req.body;
+    // Coacción defensiva de tipos (Postgres no coacciona como MySQL):
+    // los clientes viejos mandan el DNI como número.
+    const dni = String(req.body?.dni ?? "").trim();
+    const password = req.body?.password;
     const user = await Usuario.findOne({
       where: { dni },
       // El turno de caja abierto viaja en el login para que el cajero pueda
