@@ -13,16 +13,6 @@ const Vehiculo = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    // estado: {
-    //   type: DataTypes.ENUM(
-    //     "ACARREADO",
-    //     "INGRESADO",
-    //     "EGRESADO",
-    //     "COBRADO",
-    //     "SIN_CARGO",
-    //   ),
-    //   allowNull: false,
-    // },
     marca: {
       type: DataTypes.STRING(20),
       allowNull: false,

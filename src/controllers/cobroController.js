@@ -1,9 +1,12 @@
 import sequelize from "../config/db.js";
 import {
   Acarreo,
+  Barrera,
   Caja,
   Cobro,
+  Sucursal,
   Tarifa,
+  Turno_Barrera,
   Turno_Caja,
   Usuario,
   Vehiculo,
@@ -175,6 +178,7 @@ export const crearCobro = async (req, res) => {
     if (typeof id_turno_caja === "string" && id_turno_caja.trim() !== "") {
       turnoCaja = await Turno_Caja.findOne({
         where: { id: id_turno_caja.trim(), activo: true },
+        include: { model: Caja, attributes: ["id", "id_sucursal"] },
         transaction,
       });
     }
@@ -182,6 +186,7 @@ export const crearCobro = async (req, res) => {
     if (!turnoCaja) {
       turnoCaja = await Turno_Caja.findOne({
         where: { id_usuario: req.user.id, activo: true },
+        include: { model: Caja, attributes: ["id", "id_sucursal"] },
         transaction,
       });
     }
@@ -196,7 +201,19 @@ export const crearCobro = async (req, res) => {
 
     // El acarreo debe existir, estar en la playa y no tener cobro.
     const acarreo = await Acarreo.findByPk(id_acarreo, {
-      include: { model: Vehiculo },
+      include: [
+        { model: Vehiculo },
+        {
+          model: Turno_Barrera,
+          include: [
+            {
+              model: Barrera,
+              attributes: ["id"],
+              include: [{ model: Sucursal, attributes: ["id", "nombre"] }],
+            },
+          ],
+        },
+      ],
       transaction,
     });
 
@@ -220,6 +237,21 @@ export const crearCobro = async (req, res) => {
       return res.status(409).json({
         success: false,
         message: "El acarreo ya tiene un cobro registrado",
+      });
+    }
+
+    // El cajero sólo cobra acarreos de la sucursal de la caja donde tiene el
+    // turno abierto (el acarreo hereda la sucursal de la barrera de su turno
+    // de barrera).
+    const idSucursalCaja = turnoCaja.Caja?.id_sucursal;
+    const idSucursalAcarreo =
+      acarreo.Turno_Barrera?.Barrera?.Sucursal?.id;
+
+    if (idSucursalCaja && idSucursalAcarreo && idSucursalCaja !== idSucursalAcarreo) {
+      await transaction.rollback();
+      return res.status(409).json({
+        success: false,
+        message: `El acarreo es de la sucursal ${acarreo.Turno_Barrera.Barrera.Sucursal.nombre}: tu caja pertenece a otra sucursal`,
       });
     }
 
