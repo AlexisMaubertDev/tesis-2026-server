@@ -328,7 +328,17 @@ const construirDatosInformeVehiculos = async (req) => {
 
 export const obtenerVehiculos = async (req, res) => {
   try {
-    const data = await obtenerVehiculosConUltimoAcarreo();
+    // La tabla y los homes piden la lista sin búsqueda: los vehículos
+    // egresados no vienen (su historial queda disponible cuando se los busca
+    // por patente/modelo en la barra de búsqueda).
+    const busqueda = textoDeQuery(req.query.busqueda);
+    let data = await obtenerVehiculosConUltimoAcarreo();
+
+    if (!busqueda) {
+      data = data.filter(
+        (vehiculo) => vehiculo.ultimo_acarreo_estado !== "EGRESADO",
+      );
+    }
 
     return res.status(200).json({
       success: true,

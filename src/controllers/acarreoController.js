@@ -404,10 +404,14 @@ export const egresarAcarreo = async (req, res) => {
         .json({ success: false, message: "Acarreo no encontrado" });
     }
 
-    if (acarreo.estado !== "COBRADO") {
+    // Pueden salir los abonados (COBRADO) y también los salidos sin cargo
+    // (SIN_CARGO): en ambos casos el vehículo está en la playa esperando
+    // que la barrera le dé salida.
+    if (acarreo.estado !== "COBRADO" && acarreo.estado !== "SIN_CARGO") {
       return res.status(409).json({
         success: false,
-        message: "El vehículo no está abonado, no se puede dar salida",
+        message:
+          "El vehículo no está abonado (ni sacado sin cargo), no se puede dar salida",
       });
     }
 
