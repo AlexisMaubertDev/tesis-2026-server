@@ -7,6 +7,7 @@ import {
 import {
   asignarGrua,
   crearGrua,
+  editarGrua,
   obtenerGruas,
   obtenerGruasSucursal,
   cambiarEstadoGrua,
@@ -24,6 +25,7 @@ router
     authMiddleware,
     supervisorMiddleware,
     cambiarEstadoGrua,
-  );
+  )
+  .put("/:id", authMiddleware, sistemasMiddleware, editarGrua);
 
 export default router;

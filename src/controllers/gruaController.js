@@ -30,7 +30,13 @@ export const crearGrua = async (req, res) => {
   try {
     const transaction = await sequelize.transaction();
 
-    const grua = await Grua.findOne({ where: { patente }, transaction });
+    // Patente y modelo se guardan en mayúsculas (comparación consistente).
+    const patenteGrua = String(patente ?? "").toUpperCase().trim();
+    const modeloGrua = String(modelo ?? "").toUpperCase().trim();
+
+    const grua = await Grua.findOne(
+      { where: { patente: patenteGrua }, transaction },
+    );
 
     if (grua) {
       await transaction.rollback();
@@ -40,8 +46,31 @@ export const crearGrua = async (req, res) => {
       });
     }
 
+    // El número de grúa no se repite dentro de la misma sucursal.
+    const gruaMismoNumero = await Grua.findOne(
+      {
+        where: { numero: Number(numero), id_sucursal },
+        transaction,
+      },
+    );
+
+    if (gruaMismoNumero) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message:
+          "Ya existe una grúa con ese número en esa sucursal",
+      });
+    }
+
     const gruaCreada = await Grua.create(
-      { patente, modelo, numero, id_sucursal, estado: "DISPONIBLE" },
+      {
+        patente: patenteGrua,
+        modelo: modeloGrua,
+        numero: Number(numero),
+        id_sucursal,
+        estado: "DISPONIBLE",
+      },
       { transaction },
     );
 
@@ -77,8 +106,92 @@ export const crearGrua = async (req, res) => {
   }
 };
 
-export const obtenerGruasSucursal = async (req, res) => {
+/**
+ * PUT /gruas/:id — edición de una grúa (sistemas). Valida igual que el alta:
+ * patente única (sin importar la sucursal), número único dentro de la
+ * sucursal destino, y patente/modelo en mayúsculas.
+ */
+export const editarGrua = async (req, res) => {
+  const { patente, modelo, numero, estado, incidencias } = req.body;
+  const { id } = req.params;
+  const id_sucursal = req.body?.Sucursal?.id ?? null;
+
   try {
+    const grua = await Grua.findByPk(id);
+
+    if (!grua) {
+      return res.status(404).json({
+        success: false,
+        message: "Grúa no encontrada",
+      });
+    }
+
+    const patenteGrua = String(patente ?? grua.patente).toUpperCase().trim();
+    const modeloGrua = String(modelo ?? grua.modelo).toUpperCase().trim();
+    const numeroGrua = numero !== undefined ? Number(numero) : grua.numero;
+    const sucursalDestino = id_sucursal ?? grua.id_sucursal;
+
+    // La patente no puede repetirse en ninguna sucursal (excluyendo esta).
+    const otraPatente = await Grua.findOne({
+      where: { patente: patenteGrua, id: { [Op.ne]: id } },
+    });
+
+    if (otraPatente) {
+      return res.status(400).json({
+        success: false,
+        message: "Ya existe una grúa con esa patente",
+      });
+    }
+
+    // El número no puede repetirse dentro de la sucursal destino.
+    const otroNumero = await Grua.findOne({
+      where: {
+        numero: numeroGrua,
+        id_sucursal: sucursalDestino,
+        id: { [Op.ne]: id },
+      },
+    });
+
+    if (otroNumero) {
+      return res.status(400).json({
+        success: false,
+        message: "Ya existe una grúa con ese número en esa sucursal",
+      });
+    }
+
+    await grua.update({
+      patente: patenteGrua,
+      modelo: modeloGrua,
+      numero: numeroGrua,
+      id_sucursal: sucursalDestino,
+      ...(estado !== undefined ? { estado } : {}),
+      ...(incidencias !== undefined ? { incidencias } : {}),
+    });
+
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "EDITAR",
+      entidad: "GRUA",
+      idEntidad: grua.id,
+      descripcion: `Grua ${grua.patente} editada exitosamente`,
+      despues: grua,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: grua,
+      message: "Grua editada exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
+export const obtenerGruasSucursal = async (req, res) => {  try {
     const { id } = req.params;
 
     const gruas = await Grua.findAll({
