@@ -1,4 +1,5 @@
 import sequelize from "../config/db.js";
+import { Op } from "sequelize";
 import Barrera from "../models/Barrera.model.js";
 import Sucursal from "../models/Sucursal.model.js";
 import { Turno_Barrera, Turno_Barrera_Usuario, Usuario } from "../models/index.js";
@@ -26,7 +27,7 @@ export const crearBarrera = async (req, res) => {
     const id_sucursal = Sucursal.id;
     const transaction = await sequelize.transaction();
 
-    if (ubicacion.trim() === "" || !Sucursal || !Sucursal.id) {
+    if (!ubicacion || ubicacion.trim() === "" || !Sucursal || !Sucursal.id) {
       await transaction.rollback();
       return res.status(400).json({
         success: false,
@@ -34,21 +35,41 @@ export const crearBarrera = async (req, res) => {
       });
     }
 
+    // No pueden haber dos barreras con el mismo nombre en la misma sucursal.
+    const existente = await Barrera.findOne({
+      where: {
+        ubicacion: String(ubicacion).trim(),
+        id_sucursal,
+      },
+      transaction,
+    });
+
+    if (existente) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message:
+          "Ya existe una barrera con ese nombre en esa sucursal",
+      });
+    }
+
     const barreraCreada = await Barrera.create(
       {
-        ubicacion,
+        ubicacion: String(ubicacion).trim(),
         id_sucursal,
       },
       { transaction },
     );
 
     if (!barreraCreada) {
-      transaction.rollback();
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: "Error al crear la barrera",
       });
     }
+
+    await transaction.commit();
 
     return res.status(201).json({
       success: true,
@@ -70,7 +91,14 @@ export const editarBarrera = async (req, res) => {
 
     const { id } = req.params;
 
-    if (id || ubicacion.trim() === "" || !Sucursal || !Sucursal.id) {
+    // El `id` SÍ es válido acá: viene del parámetro de la ruta.
+    if (
+      !id ||
+      !ubicacion ||
+      ubicacion.trim() === "" ||
+      !Sucursal ||
+      !Sucursal.id
+    ) {
       await transaction.rollback();
       return res.status(400).json({
         success: false,
@@ -88,8 +116,26 @@ export const editarBarrera = async (req, res) => {
       });
     }
 
+    // El nombre no puede repetirse en la sucursal (excluyendo esta barrera).
+    const otra = await Barrera.findOne({
+      where: {
+        ubicacion: String(ubicacion).trim(),
+        id_sucursal: Sucursal.id,
+        id: { [Op.ne]: id },
+      },
+      transaction,
+    });
+
+    if (otra) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Ya existe una barrera con ese nombre en esa sucursal",
+      });
+    }
+
     const updatedBarrera = await barrera.update({
-      ubicacion,
+      ubicacion: String(ubicacion).trim(),
       id_sucursal: Sucursal.id,
     });
 
@@ -103,7 +149,7 @@ export const editarBarrera = async (req, res) => {
     await transaction.commit();
 
     return res.status(201).json({
-      succes: true,
+      success: true,
       message: "Barrera editada correctamente",
       data: updatedBarrera,
     });

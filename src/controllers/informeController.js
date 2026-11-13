@@ -41,6 +41,12 @@ const TIPOS = {
     titulo: "Entrada de vehículos",
     etiquetaFecha: "Fecha de ingreso",
   },
+  MOVIMIENTOS: {
+    // Se ordena por la entrada; cada fila trae fecha_entrada y fecha_salida.
+    campo: "fecha_ingreso",
+    titulo: "Movimientos de barrera",
+    etiquetaFecha: "Fecha de entrada",
+  },
   SALIDA: {
     campo: "fecha_egreso",
     titulo: "Salida de vehículos",
@@ -329,7 +335,7 @@ const construirDatosMovimientos = async (req) => {
   if (!TIPOS[tipo]) {
     throw new ErrorInforme(
       400,
-      "El tipo del informe debe ser ENTRADA, SALIDA o COBRO",
+      "El tipo del informe debe ser ENTRADA, SALIDA, MOVIMIENTOS o COBRO",
     );
   }
 
@@ -384,14 +390,40 @@ const construirDatosMovimientos = async (req) => {
   }
 
   const { campo } = TIPOS[tipo];
+  const esMovimientosCombinados = tipo === "MOVIMIENTOS";
+
+  // MOVIMIENTOS: entran los acarreos que entraron y/o salieron de la barrera
+  // en la ventana (un mismo auto puede figurar con su entrada y su salida).
+  const filtroVentana = esMovimientosCombinados
+    ? {
+        [Op.or]: ventanas.map((ventana) => ({
+          [Op.or]: [
+            {
+              fecha_ingreso: {
+                [Op.gte]: ventana.desde,
+                [Op.lte]: ventana.hasta,
+              },
+            },
+            {
+              fecha_egreso: {
+                [Op.gte]: ventana.desde,
+                [Op.lte]: ventana.hasta,
+              },
+            },
+          ],
+        })),
+      }
+    : {
+        [campo]: { [Op.not]: null },
+        [Op.or]: ventanas.map((ventana) => ({
+          [campo]: { [Op.gte]: ventana.desde, [Op.lte]: ventana.hasta },
+        })),
+      };
 
   const acarreos = await Acarreo.findAll({
     where: {
-      [campo]: { [Op.not]: null },
+      ...filtroVentana,
       id_turno_barrera: { [Op.in]: idsTurnoBarrera },
-      [Op.or]: ventanas.map((ventana) => ({
-        [campo]: { [Op.gte]: ventana.desde, [Op.lte]: ventana.hasta },
-      })),
     },
     order: [[campo, "ASC"]],
     include: [
@@ -464,6 +496,8 @@ const construirDatosMovimientos = async (req) => {
     return {
       id: acarreo.id,
       fecha: acarreo[campo],
+      fecha_entrada: acarreo.fecha_ingreso ?? null,
+      fecha_salida: acarreo.fecha_egreso ?? null,
       patente: vehiculo?.patente ?? "-",
       marca: vehiculo?.marca ?? null,
       modelo: vehiculo?.modelo ?? null,

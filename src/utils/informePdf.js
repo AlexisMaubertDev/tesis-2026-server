@@ -74,12 +74,26 @@ const truncar = (valor, ancho) => {
  * La fecha es la del movimiento en la playa (ingreso o egreso), no la del
  * acarreo, así que su título depende del tipo de informe.
  */
-const columnasMovimientos = (datos) => [
-  ["patente", "Patente", 70],
-  ["vehiculo", "Vehículo", 130],
-  ["fecha", datos.etiquetaFecha ?? "Fecha y hora", 100],
-  ["barrera", "Barrera", 195],
-];
+const columnasMovimientos = (datos) => {
+  // MOVIMIENTOS: entradas y salidas juntos, con las dos fechas por fila.
+  if (datos.tipo === "MOVIMIENTOS") {
+    return [
+      ["patente", "Patente", 60],
+      ["vehiculo", "Vehículo", 110],
+      ["fecha_entrada", "Entrada", 95],
+      ["fecha_salida", "Salida", 95],
+      ["estado", "Estado", 60],
+      ["barrera", "Barrera", 110],
+    ];
+  }
+
+  return [
+    ["patente", "Patente", 70],
+    ["vehiculo", "Vehículo", 130],
+    ["fecha", datos.etiquetaFecha ?? "Fecha y hora", 100],
+    ["barrera", "Barrera", 195],
+  ];
+};
 
 /**
  * Columnas de la tabla del informe de cobros (RF21 / CU12).
@@ -521,6 +535,14 @@ export const construirInformePdf = (datos) => {
         );
       case "fecha":
         return formatoFecha(movimiento.fecha);
+      case "fecha_entrada":
+        return movimiento.fecha_entrada
+          ? formatoFecha(movimiento.fecha_entrada)
+          : "-";
+      case "fecha_salida":
+        return movimiento.fecha_salida
+          ? formatoFecha(movimiento.fecha_salida)
+          : "Sin salida";
       case "inicio":
         return formatoFecha(movimiento.inicio);
       case "cierre":
@@ -672,7 +694,9 @@ export const construirInformePdf = (datos) => {
           filas: datos.movimientos ?? [],
           mensajeVacio: mensajeVacioDe(datos),
           nota:
-            datos.tipo === "ENTRADA" || datos.tipo === "SALIDA"
+            datos.tipo === "ENTRADA" ||
+            datos.tipo === "SALIDA" ||
+            datos.tipo === "MOVIMIENTOS"
               ? "Los playeros mostrados son los asignados al turno de barrera del movimiento."
               : null,
         },

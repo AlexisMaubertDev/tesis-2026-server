@@ -1,4 +1,5 @@
 import sequelize from "../config/db.js";
+import { Op } from "sequelize";
 import { Caja, Sucursal, Turno_Caja, Usuario } from "../models/index.js";
 
 export const obtenerCajas = async (req, res) => {
@@ -33,7 +34,21 @@ export const crearCaja = async (req, res) => {
       await transaction.rollback();
       return res.status(400).json({
         success: false,
-        message: "Ya existe una caja con ese número en esta sucursal",
+        message: "Ya existe una caja con ese número en esta sucursal",
+      });
+    }
+
+    // La referencia tampoco puede repetirse dentro de la sucursal.
+    const mismaReferencia = await Caja.findOne({
+      where: { referencia, id_sucursal: Sucursal.id },
+      transaction,
+    });
+
+    if (mismaReferencia) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Ya existe una caja con esa referencia en esta sucursal",
       });
     }
 
@@ -49,9 +64,9 @@ export const crearCaja = async (req, res) => {
       usuario: req.user,
       accion: "CREAR",
       entidad: "CAJA",
-      idEntidad: caja.id,
-      descripcion: `Creó la caja N°${caja.numero_caja}, con referencia "${caja.referencia}"`,
-      despues: caja,
+      idEntidad: cajaCreada.id,
+      descripcion: `Creó la caja N°${cajaCreada.numero_caja}, con referencia "${cajaCreada.referencia}"`,
+      despues: cajaCreada,
     });
     await transaction.commit();
     return res.status(200).json({
@@ -87,16 +102,34 @@ export const editarCaja = async (req, res) => {
       transaction,
 
       validacion: async () => {
-        const existente = await Caja.findOne({
+        // El número no puede repetirse en la sucursal (excluyendo esta caja).
+        const mismoNumero = await Caja.findOne({
           where: {
             numero_caja,
             id_sucursal: Sucursal.id,
+            id: { [Op.ne]: id },
           },
           transaction,
         });
 
-        if (existente && existente.numero_caja !== numero_caja) {
+        if (mismoNumero) {
           throw new Error("Ya existe una caja con ese número en esta sucursal");
+        }
+
+        // La referencia tampoco puede repetirse en la sucursal.
+        const mismaReferencia = await Caja.findOne({
+          where: {
+            referencia,
+            id_sucursal: Sucursal.id,
+            id: { [Op.ne]: id },
+          },
+          transaction,
+        });
+
+        if (mismaReferencia) {
+          throw new Error(
+            "Ya existe una caja con esa referencia en esta sucursal",
+          );
         }
       },
     });
