@@ -107,7 +107,7 @@ const obtenerVehiculosConUltimoAcarreo = async () => {
   // El último acarreo define el estado y la sucursal del vehículo. Se resuelve
   // en memoria porque cada vehículo tiene pocos acarreos (evita subconsultas
   // correlacionadas o funciones de ventana).
-  return vehiculos
+  const listado = vehiculos
     .map((vehiculo) => {
       const json = vehiculo.toJSON();
 
@@ -141,17 +141,32 @@ const obtenerVehiculosConUltimoAcarreo = async () => {
           : null,
       };
     })
-    // Orden pedido: primero los que están en playa y después por la fecha del
-    // último acarreo (más reciente primero). Los vehículos sin acarreos van al
-    // final.
-    .sort((a, b) => {
-      if (a.en_playa !== b.en_playa) return a.en_playa ? -1 : 1;
+  // Guarda: si hay más de una fila con la misma patente (duplicado histórico),
+  // se lista una sola: la del acarreo más reciente por fecha.
+  const porPatente = new Map();
 
-      const fechaA = new Date(a.ultimo_acarreo).getTime() || 0;
-      const fechaB = new Date(b.ultimo_acarreo).getTime() || 0;
+  for (const vehiculo of listado) {
+    const clave = String(vehiculo.patente ?? "").toUpperCase();
+    const actual = porPatente.get(clave);
+    const fechaNueva = new Date(vehiculo.ultimo_acarreo).getTime() || 0;
+    const fechaActual = new Date(actual?.ultimo_acarreo).getTime() || 0;
 
-      return fechaB - fechaA;
-    });
+    if (!actual || fechaNueva > fechaActual) {
+      porPatente.set(clave, vehiculo);
+    }
+  }
+
+  // Orden pedido: primero los que están en playa y después por la fecha del
+  // último acarreo (más reciente primero). Los vehículos sin acarreos van al
+  // final.
+  return [...porPatente.values()].sort((a, b) => {
+    if (a.en_playa !== b.en_playa) return a.en_playa ? -1 : 1;
+
+    const fechaA = new Date(a.ultimo_acarreo).getTime() || 0;
+    const fechaB = new Date(b.ultimo_acarreo).getTime() || 0;
+
+    return fechaB - fechaA;
+  });
 };
 
 /**
@@ -407,15 +422,29 @@ export const ingresarVehiculoAPlaya = async (req, res) => {
   try {
     const { patente, marca, modelo, color, fue_denuncia, playero_ingreso_id } =
       req.body;
-    const vehiculo = await Vehiculo.create({
-      patente,
-      marca,
-      modelo,
-      color,
-      playero_ingreso_id,
-      estado: "INGRESADO",
-      fue_denuncia,
+
+    const patenteNormalizada = String(patente ?? "").toUpperCase().trim();
+
+    // La patente identifica al vehículo: si ya existe se reusa, para no crear
+    // duplicados de la misma patente (como pasó con un ingreso repetido).
+    let vehiculo = await Vehiculo.findOne({
+      where: sequelize.where(
+        sequelize.fn("UPPER", sequelize.col("patente")),
+        patenteNormalizada,
+      ),
     });
+
+    if (!vehiculo) {
+      vehiculo = await Vehiculo.create({
+        patente: patenteNormalizada,
+        marca,
+        modelo,
+        color,
+        playero_ingreso_id,
+        estado: "INGRESADO",
+        fue_denuncia,
+      });
+    }
 
     return res.status(201).json({
       success: true,

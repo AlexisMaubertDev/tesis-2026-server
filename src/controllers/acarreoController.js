@@ -73,15 +73,19 @@ export const crearAcarreo = async (req, res) => {
       }
     }
 
-    const vehiculo_creado = await Vehiculo.create(parsedVehiculo, {
+    // La patente identifica al vehículo: si ya existe (misma patente, sin
+    // distinguir mayúsculas) se reusa en vez de crear un duplicado.
+    let vehiculo_creado = await Vehiculo.findOne({
+      where: sequelize.where(
+        sequelize.fn("UPPER", sequelize.col("patente")),
+        parsedVehiculo.patente,
+      ),
       transaction,
     });
 
     if (!vehiculo_creado) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: "Faltan campos obligatorios",
+      vehiculo_creado = await Vehiculo.create(parsedVehiculo, {
+        transaction,
       });
     }
 
@@ -179,21 +183,26 @@ export const getAcarreosPorPatente = async (req, res) => {
 
     // La patente se guarda en mayúsculas al crear el acarreo, pero se compara
     // sin distinguir mayúsculas para no depender de eso.
-    const vehiculo = await Vehiculo.findOne({
+    // Puede haber más de una fila con la misma patente (duplicados
+    // históricos): el historial junta los acarreos de todas.
+    const vehiculos = await Vehiculo.findAll({
       where: sequelize.where(
         sequelize.fn("UPPER", sequelize.col("patente")),
         patente.toUpperCase(),
       ),
+      attributes: ["id"],
     });
 
-    if (!vehiculo) {
+    if (vehiculos.length === 0) {
       return res
         .status(404)
         .json({ success: false, message: "Vehículo no encontrado" });
     }
 
     const acarreos = await Acarreo.findAll({
-      where: { id_vehiculo: vehiculo.id },
+      where: {
+        id_vehiculo: { [Op.in]: vehiculos.map((v) => v.id) },
+      },
       order: [["fecha_acarreo", "DESC"]],
       include: [
         { model: Vehiculo },
