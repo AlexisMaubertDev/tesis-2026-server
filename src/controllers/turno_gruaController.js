@@ -352,6 +352,96 @@ export const agregarIncidencia = async (req, res) => {
   }
 };
 
+export const editarTurnoGrua = async (req, res) => {
+  const { id } = req.params;
+  const { id_chofer, id_enganchador, id_supervisor, incidencias } = req.body;
+
+  let transaction;
+
+  // La incidencia es OBLIGATORIA: el supervisor tiene que explicar qué pasó
+  // cuando cambia los integrantes de un turno.
+  if (!incidencias || !incidencias.trim()) {
+    return res.status(400).json({
+      error: "La incidencia es obligatoria: indicá qué sucedió",
+    });
+  }
+
+  try {
+    transaction = await sequelize.transaction();
+
+    const turnoGrua = await Turno_Grua.findByPk(id, { transaction });
+    if (!turnoGrua) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Turno de grua no encontrado" });
+    }
+
+    // Los nuevos integrantes tienen que existir.
+    for (const [campo, idUsuario] of [
+      ["chofer", id_chofer],
+      ["enganchador", id_enganchador],
+      ["supervisor", id_supervisor],
+    ]) {
+      if (!idUsuario) continue;
+
+      const usuario = await Usuario.findByPk(idUsuario, { transaction });
+      if (!usuario) {
+        await transaction.rollback();
+        return res
+          .status(404)
+          .json({ error: `No se encontró al ${campo} asignado` });
+      }
+    }
+
+    const nuevosIntegrantes = {
+      ...(id_chofer ? { id_chofer } : {}),
+      ...(id_enganchador ? { id_enganchador } : {}),
+      ...(id_supervisor ? { id_supervisor } : {}),
+    };
+
+    // Se registra la incidencia como entrada nueva, igual que en
+    // agregarIncidencia.
+    const incidenciaFormateada = turnoGrua.incidencias
+      ? `${turnoGrua.incidencias}\n- ${incidencias.trim()}`
+      : `- ${incidencias.trim()}`;
+
+    const antes = {
+      id_chofer: turnoGrua.id_chofer,
+      id_enganchador: turnoGrua.id_enganchador,
+      id_supervisor: turnoGrua.id_supervisor,
+    };
+
+    await turnoGrua.update(
+      { ...nuevosIntegrantes, incidencias: incidenciaFormateada },
+      { transaction },
+    );
+
+    await registrarAuditoria({
+      usuario: req.user,
+      entidad: "TURNO_GRUA",
+      idEntidad: turnoGrua.id_grua,
+      accion: "EDITAR_TURNO_GRUA",
+      descripcion: `Editó los integrantes del turno de grua ${turnoGrua.id}`,
+      req,
+      antes,
+      despues: {
+        ...nuevosIntegrantes,
+        incidencias: incidenciaFormateada,
+      },
+    });
+
+    await transaction.commit();
+    return res.status(200).json({
+      success: true,
+      message: "Turno editado con éxito",
+      data: turnoGrua,
+    });
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    console.error(error);
+    return res.status(500).json({ error: "Error en el servidor" });
+  }
+};
+
 export const finalizarTurno = async (req, res) => {
   const { id_turno_grua } = req.params;
   let transaction;

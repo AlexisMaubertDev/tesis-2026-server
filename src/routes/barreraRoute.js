@@ -11,6 +11,7 @@ import {
   asignarBarrera,
   finalizarTurnoBarrera,
   agregarIncidenciasBarrera,
+  editarTurnoBarrera,
   finalizarTodosTurnosBarrera,
   obtenerMiTurnoBarrera,
   obtenerTurnosBarrera,
@@ -61,6 +62,7 @@ router
   .post("/asignar", authMiddleware, supervisorMiddleware, asignarBarrera)
   .put("/finalizarTodos/:id_sucursal", authMiddleware, supervisorMiddleware, finalizarTodosTurnosBarrera)
   .put("/turno/:id/finalizar", authMiddleware, supervisorMiddleware, finalizarTurnoBarrera)
-  .put("/turno/:id/incidencias", authMiddleware, supervisorMiddleware, agregarIncidenciasBarrera);
+  .put("/turno/:id/incidencias", authMiddleware, supervisorMiddleware, agregarIncidenciasBarrera)
+  .put("/turno/:id/editar", authMiddleware, supervisorMiddleware, editarTurnoBarrera);
 
 export default router;

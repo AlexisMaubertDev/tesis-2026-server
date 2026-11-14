@@ -302,6 +302,97 @@ export const agregarIncidenciasBarrera = async (req, res) => {
   }
 };
 
+export const editarTurnoBarrera = async (req, res) => {
+  const { id } = req.params;
+  const { usuarios, incidencias } = req.body;
+
+  let transaction;
+
+  // La incidencia es OBLIGATORIA: el supervisor tiene que explicar qué pasó
+  // cuando cambia los playeros del turno.
+  if (!incidencias || !incidencias.trim()) {
+    return res.status(400).json({
+      error: "La incidencia es obligatoria: indicá qué sucedió",
+    });
+  }
+
+  if (!Array.isArray(usuarios) || usuarios.length === 0) {
+    return res.status(400).json({
+      error: "Hay que asignar al menos un playero al turno",
+    });
+  }
+
+  try {
+    transaction = await sequelize.transaction();
+
+    const turno = await Turno_Barrera.findByPk(id, { transaction });
+    if (!turno) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Turno de barrera no encontrado" });
+    }
+
+    // Todos los playeros nuevos tienen que existir.
+    const usuariosValidos = await Usuario.findAll({
+      where: { id: { [Op.in]: usuarios } },
+      transaction,
+    });
+
+    if (usuariosValidos.length !== usuarios.length) {
+      await transaction.rollback();
+      return res
+        .status(404)
+        .json({ error: "Hay playeros que no se encontraron" });
+    }
+
+    // Se reemplazan las asignaciones del turno.
+    await Turno_Barrera_Usuario.destroy({
+      where: { id_turno_barrera: turno.id },
+      transaction,
+    });
+
+    await Turno_Barrera_Usuario.bulkCreate(
+      usuarios.map((id_usuario) => ({
+        id_turno_barrera: turno.id,
+        id_usuario,
+      })),
+      { transaction },
+    );
+
+    // Se registra la incidencia como entrada nueva.
+    const incidenciaFormateada = turno.incidencias
+      ? `${turno.incidencias}\n- ${incidencias.trim()}`
+      : `- ${incidencias.trim()}`;
+
+    await turno.update({ incidencias: incidenciaFormateada }, { transaction });
+
+    await registrarAuditoria({
+      usuario: req.user,
+      entidad: "TURNO_BARRERA",
+      idEntidad: turno.id_barrera,
+      accion: "EDITAR_TURNO_BARRERA",
+      descripcion: `Editó los playeros del turno de barrera ${turno.id}`,
+      req,
+      despues: {
+        usuarios: usuariosValidos.map((u) => `${u.nombre} ${u.apellido}`),
+        incidencias: incidenciaFormateada,
+      },
+    });
+
+    await transaction.commit();
+    return res.status(200).json({
+      success: true,
+      message: "Turno editado con éxito",
+      data: turno,
+    });
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
+
 export const finalizarTodosTurnosBarrera = async (req, res) => {
   const { id_sucursal } = req.params;
   if (!id_sucursal) {

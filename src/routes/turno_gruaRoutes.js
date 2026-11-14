@@ -7,6 +7,7 @@ import {
   finalizarTodosLosTurnosGruasPorSucursal,
   agregarIncidencia,
   finalizarTurno,
+  editarTurnoGrua,
   obtenerTurnosGrua,
   obtenerTurnosGruaDeUsuario,
   obtenerTurnosGruaDeGrua,
@@ -61,6 +62,12 @@ router
     authMiddleware,
     supervisorMiddleware,
     agregarIncidencia,
+  )
+  .put(
+    "/:id_turno_grua/editar",
+    authMiddleware,
+    supervisorMiddleware,
+    editarTurnoGrua,
   )
   .put(
     "/:id_turno_grua/finalizar",
