@@ -89,6 +89,29 @@ export const crearAcarreo = async (req, res) => {
       });
     }
 
+    // Un vehículo que ya está en el sistema no puede volver a acarreo hasta
+    // que se retire de la playa: si su último acarreo está ACARREADO, EN_PLAYA
+    // o COBRADO (todavía en playa, cobrado o no), se rechaza. Sólo si está
+    // RETIRADO (egresado) o SIN_CARGO se permite generar el acarreo nuevo,
+    // reusando el vehículo que ya existe.
+    const ultimoAcarreo = await Acarreo.findOne({
+      where: { id_vehiculo: vehiculo_creado.id },
+      order: [["fecha_acarreo", "DESC"]],
+      transaction,
+    });
+
+    if (
+      ultimoAcarreo &&
+      ["ACARREADO", "EN_PLAYA", "COBRADO"].includes(ultimoAcarreo.estado)
+    ) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message:
+          "Ese vehículo ya tiene un acarreo activo en la playa (no retirado): no se puede generar otro acarreo con esa patente",
+      });
+    }
+
     // Turno de grúa del acarreo. En modo offline el cliente puede informar
     // `id_turno_grua` (si arrancó el turno con conexión); si no viene o no
     // existe, se busca el turno activo del usuario como siempre.
@@ -311,7 +334,7 @@ const obtenerTurnoBarreraActivo = async (idUsuario) => {
 };
 
 /**
- * Ingreso a playa (barrera): un acarreo ACARREADO pasa a INGRESADO, se registra
+ * Ingreso a playa (barrera): un acarreo ACARREADO pasa a EN_PLAYA, se registra
  * la fecha de ingreso y el turno de barrera activo del playero.
  */
 export const ingresarAcarreoAPlaya = async (req, res) => {
@@ -352,7 +375,7 @@ export const ingresarAcarreoAPlaya = async (req, res) => {
       : null;
 
     await acarreo.update({
-      estado: "INGRESADO",
+      estado: "EN_PLAYA",
       fecha_ingreso: fechaIngreso,
       ...(turnoBarrera ? { id_turno_barrera: turnoBarrera.id } : {}),
       ...(incidenciaIngreso
@@ -388,7 +411,7 @@ export const ingresarAcarreoAPlaya = async (req, res) => {
 };
 
 /**
- * Egreso de playa (barrera): un acarreo COBRADO (ya abonado) pasa a EGRESADO y
+ * Egreso de playa (barrera): un acarreo COBRADO (ya abonado) pasa a RETIRADO y
  * se registra la fecha de egreso.
  */
 export const egresarAcarreo = async (req, res) => {
@@ -431,7 +454,7 @@ export const egresarAcarreo = async (req, res) => {
       : null;
 
     await acarreo.update({
-      estado: "EGRESADO",
+      estado: "RETIRADO",
       fecha_egreso: fechaEgreso,
       ...(incidenciaEgreso
         ? {
@@ -466,7 +489,7 @@ export const egresarAcarreo = async (req, res) => {
 };
 
 /**
- * Salida sin cargo (supervisor): un acarreo INGRESADO sale de la playa sin
+ * Salida sin cargo (supervisor): un acarreo EN_PLAYA sale de la playa sin
  * abonar. Pasa a SIN_CARGO, se registra la fecha de egreso y el motivo queda
  * guardado como incidencia del acarreo (además de la auditoría), para que el
  * supervisor lo vea junto al resto de las incidencias.
@@ -494,7 +517,7 @@ export const sacarSinCargo = async (req, res) => {
         .json({ success: false, message: "Acarreo no encontrado" });
     }
 
-    if (acarreo.estado !== "INGRESADO") {
+    if (acarreo.estado !== "EN_PLAYA") {
       return res.status(409).json({
         success: false,
         message:
@@ -527,7 +550,7 @@ export const sacarSinCargo = async (req, res) => {
       entidad: "ACARREO",
       idEntidad: acarreo.id,
       descripcion: incidencia,
-      antes: { estado: "INGRESADO", incidencias: incidenciasPrevias ?? null },
+      antes: { estado: "EN_PLAYA", incidencias: incidenciasPrevias ?? null },
       despues: { estado: "SIN_CARGO", incidencia },
     });
 

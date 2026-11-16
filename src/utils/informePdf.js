@@ -47,9 +47,9 @@ export const formatoImporte = (valor) => {
 export const etiquetaEstado = (estado) =>
   ({
     ACARREADO: "Acarreado",
-    INGRESADO: "En playa",
+    EN_PLAYA: "En playa",
     COBRADO: "Cobrado",
-    EGRESADO: "Egresado",
+    RETIRADO: "Retirado",
     SIN_CARGO: "Sin cargo",
   })[estado] ?? estado ?? "-";
 
@@ -268,7 +268,7 @@ const resumenDe = (datos) => {
         { etiqueta: "En playa", valor: String(datos.totales.enPlaya ?? 0) },
         { etiqueta: "Cobrados", valor: String(datos.totales.cobrados ?? 0) },
         { etiqueta: "Sin cargo", valor: String(datos.totales.sinCargo ?? 0) },
-        { etiqueta: "Egresados", valor: String(datos.totales.egresados ?? 0) },
+        { etiqueta: "Retirados", valor: String(datos.totales.egresados ?? 0) },
       ];
     default:
       return [

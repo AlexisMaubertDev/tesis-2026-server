@@ -559,9 +559,9 @@ export const obtenerDetalleTurnoGrua = async (req, res) => {
     const totales = acarreos.reduce(
       (acc, acarreo) => ({
         cantidad: acc.cantidad + 1,
-        ingresados: acc.ingresados + (acarreo.estado === "INGRESADO" ? 1 : 0),
+        ingresados: acc.ingresados + (acarreo.estado === "EN_PLAYA" ? 1 : 0),
         cobrados: acc.cobrados + (acarreo.estado === "COBRADO" ? 1 : 0),
-        egresados: acc.egresados + (acarreo.estado === "EGRESADO" ? 1 : 0),
+        egresados: acc.egresados + (acarreo.estado === "RETIRADO" ? 1 : 0),
         sinCargo: acc.sinCargo + (acarreo.estado === "SIN_CARGO" ? 1 : 0),
       }),
       { cantidad: 0, ingresados: 0, cobrados: 0, egresados: 0, sinCargo: 0 },
@@ -616,9 +616,9 @@ export const obtenerMiTurnoGrua = async (req, res) => {
     const totales = acarreos.reduce(
       (acc, acarreo) => ({
         cantidad: acc.cantidad + 1,
-        ingresados: acc.ingresados + (acarreo.estado === "INGRESADO" ? 1 : 0),
+        ingresados: acc.ingresados + (acarreo.estado === "EN_PLAYA" ? 1 : 0),
         cobrados: acc.cobrados + (acarreo.estado === "COBRADO" ? 1 : 0),
-        egresados: acc.egresados + (acarreo.estado === "EGRESADO" ? 1 : 0),
+        egresados: acc.egresados + (acarreo.estado === "RETIRADO" ? 1 : 0),
         sinCargo: acc.sinCargo + (acarreo.estado === "SIN_CARGO" ? 1 : 0),
       }),
       { cantidad: 0, ingresados: 0, cobrados: 0, egresados: 0, sinCargo: 0 },

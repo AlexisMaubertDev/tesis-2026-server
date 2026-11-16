@@ -129,7 +129,7 @@ export const obtenerPreviewCobro = async (req, res) => {
  * Registra el cobro de un vehículo ingresado en la playa (cajero).
  *
  * Verifica el turno de caja abierto del usuario, que el acarreo esté
- * INGRESADO y los importes sean coherentes. El total lo calcula el servidor a
+ * EN_PLAYA y los importes sean coherentes. El total lo calcula el servidor a
  * partir de la tarifa vigente y de las estadías por reloj (cada 12 horas desde
  * el acarreo, tope 70): `acarreo + estadía × estadías`. El cliente sólo informa
  * los medios de pago, que deben sumar exactamente ese total. Luego crea el
@@ -224,7 +224,7 @@ export const crearCobro = async (req, res) => {
         .json({ success: false, message: "Acarreo no encontrado" });
     }
 
-    if (acarreo.estado !== "INGRESADO") {
+    if (acarreo.estado !== "EN_PLAYA") {
       await transaction.rollback();
       return res.status(409).json({
         success: false,
@@ -344,7 +344,7 @@ export const crearCobro = async (req, res) => {
       entidad: "COBRO",
       idEntidad: cobro.id,
       descripcion: `Se registró el cobro del acarreo ${acarreo.id} por $${sinSistema ? pagadoNum : totalNum}${sinSistema && detalleSinSistema ? ` (sincronizado sin sistema: ${detalleSinSistema})` : ""}`,
-      antes: { estado: "INGRESADO" },
+      antes: { estado: "EN_PLAYA" },
       despues: { estado: "COBRADO", cobro: cobro.toJSON() },
     });
 

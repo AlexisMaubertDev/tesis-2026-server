@@ -61,8 +61,8 @@ const Acarreo = sequelize.define(
     estado: {
       type: DataTypes.ENUM(
         "ACARREADO",
-        "INGRESADO",
-        "EGRESADO",
+        "EN_PLAYA",
+        "RETIRADO",
         "COBRADO",
         "SIN_CARGO",
       ),

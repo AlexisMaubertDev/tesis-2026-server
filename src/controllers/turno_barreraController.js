@@ -575,9 +575,9 @@ export const obtenerDetalleTurnoBarrera = async (req, res) => {
 
     const porEstado = acarreos.reduce(
       (acc, acarreo) => ({
-        ingresados: acc.ingresados + (acarreo.estado === "INGRESADO" ? 1 : 0),
+        ingresados: acc.ingresados + (acarreo.estado === "EN_PLAYA" ? 1 : 0),
         cobrados: acc.cobrados + (acarreo.estado === "COBRADO" ? 1 : 0),
-        egresados: acc.egresados + (acarreo.estado === "EGRESADO" ? 1 : 0),
+        egresados: acc.egresados + (acarreo.estado === "RETIRADO" ? 1 : 0),
         sinCargo: acc.sinCargo + (acarreo.estado === "SIN_CARGO" ? 1 : 0),
       }),
       { ingresados: 0, cobrados: 0, egresados: 0, sinCargo: 0 },
@@ -586,7 +586,7 @@ export const obtenerDetalleTurnoBarrera = async (req, res) => {
     const totales = {
       ingresos: movimientos.filter((m) => m.tipo === "ENTRADA").length,
       egresos: movimientos.filter((m) => m.tipo === "SALIDA").length,
-      // Autos que hoy siguen en la playa (estado INGRESADO).
+      // Autos que hoy siguen en la playa (estado EN_PLAYA).
       enPlaya: porEstado.ingresados,
       porEstado,
     };

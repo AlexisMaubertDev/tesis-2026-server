@@ -8,7 +8,7 @@ import {
 import { construirInformePdf } from "../utils/informePdf.js";
 
 // Estados de un acarreo en los que el vehículo todavía está en la playa.
-const ESTADOS_EN_PLAYA = ["ACARREADO", "INGRESADO"];
+const ESTADOS_EN_PLAYA = ["ACARREADO", "EN_PLAYA"];
 const FORMATO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 const ZONA_HORARIA = "America/Argentina/Buenos_Aires";
 const FORMATO_FECHA_ZONA = new Intl.DateTimeFormat("en-CA", {
@@ -351,7 +351,7 @@ export const obtenerVehiculos = async (req, res) => {
 
     if (!busqueda) {
       data = data.filter(
-        (vehiculo) => vehiculo.ultimo_acarreo_estado !== "EGRESADO",
+        (vehiculo) => vehiculo.ultimo_acarreo_estado !== "RETIRADO",
       );
     }
 
@@ -441,7 +441,7 @@ export const ingresarVehiculoAPlaya = async (req, res) => {
         modelo,
         color,
         playero_ingreso_id,
-        estado: "INGRESADO",
+        estado: "EN_PLAYA",
         fue_denuncia,
       });
     }

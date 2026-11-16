@@ -64,7 +64,7 @@ const TIPO_COBRO = "COBRO";
 const TIPO_ACARREO = "ACARREO";
 
 /** Estados de un acarreo que todavía está en la playa. */
-const ESTADOS_EN_PLAYA = ["ACARREADO", "INGRESADO"];
+const ESTADOS_EN_PLAYA = ["ACARREADO", "EN_PLAYA"];
 
 /** Roles que pueden consultar los cobros (RF21): Supervisor y Sistemas. */
 const ROLES_COBROS = ["SUPERVISOR", "SISTEMAS"];
@@ -1455,7 +1455,7 @@ const construirDatosAcarreos = async (req) => {
         (ESTADOS_EN_PLAYA.includes(movimiento.estado) ? 1 : 0),
       cobrados: acc.cobrados + (movimiento.estado === "COBRADO" ? 1 : 0),
       sinCargo: acc.sinCargo + (movimiento.estado === "SIN_CARGO" ? 1 : 0),
-      egresados: acc.egresados + (movimiento.estado === "EGRESADO" ? 1 : 0),
+      egresados: acc.egresados + (movimiento.estado === "RETIRADO" ? 1 : 0),
     }),
     { cantidad: 0, enPlaya: 0, cobrados: 0, sinCargo: 0, egresados: 0 },
   );
@@ -2131,7 +2131,7 @@ const construirDatosFinTurno = async (req) => {
 
   // Estado del vehículo al cierre de la ventana, reconstruido con las fechas.
   // No se usa el estado actual: un auto que estaba en la playa al cierre pudo
-  // egresar después y figurar hoy como EGRESADO.
+  // egresar después y figurar hoy como RETIRADO.
   const estadoAlCierre = (acarreo) => {
     const ingreso = acarreo.fecha_ingreso
       ? new Date(acarreo.fecha_ingreso).getTime()
@@ -2149,17 +2149,17 @@ const construirDatosFinTurno = async (req) => {
     const cobradoAlCierre = cobro !== null && cobro <= fin;
 
     if (egreso !== null && egreso <= fin) {
-      return cobradoAlCierre ? "EGRESADO" : "SIN_CARGO";
+      return cobradoAlCierre ? "RETIRADO" : "SIN_CARGO";
     }
 
-    return cobradoAlCierre ? "COBRADO" : "INGRESADO";
+    return cobradoAlCierre ? "COBRADO" : "EN_PLAYA";
   };
 
   const estados = [
     "ACARREADO",
-    "INGRESADO",
+    "EN_PLAYA",
     "COBRADO",
-    "EGRESADO",
+    "RETIRADO",
     "SIN_CARGO",
   ];
   const conteoEstados = estados.map((estado) => ({
