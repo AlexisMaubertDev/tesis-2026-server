@@ -355,9 +355,20 @@ export const obtenerVehiculos = async (req, res) => {
       );
     }
 
+    // Paginado opcional (la web carga 20 vehículos y el resto en segundo
+    // plano). El corte se aplica después de filtrar y ordenar.
+    const limit = Number(req.query.limit);
+    const offset = Number(req.query.offset) || 0;
+    const total = data.length;
+
+    if (Number.isInteger(limit) && limit > 0) {
+      data = data.slice(offset, offset + limit);
+    }
+
     return res.status(200).json({
       success: true,
       data,
+      total,
       message: "Vehiculos obtenidos exitosamente",
     });
   } catch (err) {
