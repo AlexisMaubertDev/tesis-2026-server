@@ -14,6 +14,7 @@ import acarreoRoutes from "./routes/acarreoRoutes.js";
 import cobroRoutes from "./routes/cobroRoutes.js";
 import tarifaRoutes from "./routes/tarifaRoutes.js";
 import informeRoutes from "./routes/informeRoutes.js";
+import auditoriaRoutes from "./routes/auditoriaRoutes.js";
 import testRoutes from "./routes/testRoutes.js";
 import { apiRateLimiter } from "./middlewares/rateLimitMiddleware.js";
 import sequelize from "./config/db.js";
@@ -134,6 +135,7 @@ app.use("/api/acarreos", acarreoRoutes);
 app.use("/api/cobros", cobroRoutes);
 app.use("/api/tarifas", tarifaRoutes);
 app.use("/api/informes", informeRoutes);
+app.use("/api/auditorias", auditoriaRoutes);
 
 console.log(process.env.NODE_ENV);
 if (process.env.NODE_ENV === "development") {
