@@ -697,7 +697,13 @@ export const senalarSiniestro = async (req, res) => {
     const incidenciasPrevias = acarreo.incidencias;
     const yaTeniaSiniestro = acarreo.tuvo_siniestro === true;
     const incidencia = `Siniestro señalado: ${incidencias.trim()}`;
-    const nuevas = acumularIncidencia(incidenciasPrevias, incidencia);
+    // No se sobrescriben las incidencias: la nueva se suma al historial
+    // anterior en una línea nueva. `nuevas` = incidencias previas + \n + nueva.
+    const previas =
+      typeof incidenciasPrevias === "string"
+        ? incidenciasPrevias.replace(/\s+$/, "")
+        : "";
+    const nuevas = previas ? `${previas}\n${incidencia}` : incidencia;
 
     await acarreo.update({
       incidencias: nuevas,
