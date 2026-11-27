@@ -365,7 +365,8 @@ export const agregarIncidencia = async (req, res) => {
 };
 
 export const editarTurnoGrua = async (req, res) => {
-  const { id } = req.params;
+  // La ruta usa `:id_turno_grua`, no `:id`. Se acepta ambos por robustez.
+  const id = req.params.id_turno_grua ?? req.params.id;
   const { id_chofer, id_enganchador, id_supervisor, incidencias } = req.body;
 
   let transaction;
