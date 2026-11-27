@@ -215,8 +215,8 @@ export const editarSucursal = async (req, res) => {
       entidad: "SUCURSAL",
       idEntidad: sucursal.id,
       descripcion: `Editó la sucursal ${sucursal.nombre}`,
-      datosAnteriores: sucursalAntes,
-      datosNuevos: { nombre, direccion },
+      antes: sucursalAntes,
+      despues: { nombre, direccion },
     });
 
     // =========================

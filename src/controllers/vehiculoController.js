@@ -6,6 +6,8 @@ import {
   Vehiculo,
 } from "../models/index.js";
 import { construirInformePdf } from "../utils/informePdf.js";
+import { registrarAuditoria } from "../utils/auditoria.js";
+import sequelize from "../config/db.js";
 
 // Estados de un acarreo en los que el vehículo todavía está en la playa.
 const ESTADOS_EN_PLAYA = ["ACARREADO", "EN_PLAYA"];
@@ -466,6 +468,16 @@ export const ingresarVehiculoAPlaya = async (req, res) => {
       });
     }
 
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "INGRESAR_A_PLAYA",
+      entidad: "VEHICULO",
+      idEntidad: vehiculo.id,
+      descripcion: `Se ingresó a playa el vehículo ${vehiculo.patente}`,
+      despues: vehiculo.toJSON(),
+    });
+
     return res.status(201).json({
       success: true,
       data: vehiculo,
@@ -505,12 +517,25 @@ export const editarVehiculo = async (req, res) => {
         .json({ success: false, message: "Vehículo no encontrado" });
     }
 
+    const antes = vehiculo.toJSON();
+
     // Igual que en el alta de acarreo (`crearAcarreo`), los datos del vehículo
     // se guardan en mayúsculas.
     await vehiculo.update({
       marca: marca.toUpperCase(),
       modelo: modelo.toUpperCase(),
       color: color.toUpperCase(),
+    });
+
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "EDITAR",
+      entidad: "VEHICULO",
+      idEntidad: vehiculo.id,
+      descripcion: `Editó el vehículo ${vehiculo.patente}`,
+      antes,
+      despues: vehiculo.toJSON(),
     });
 
     return res.status(200).json({
@@ -545,7 +570,19 @@ export const eliminarVehiculo = async (req, res) => {
       });
     }
 
+    const antes = vehiculo.toJSON();
+
     await vehiculo.destroy();
+
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "ELIMINAR",
+      entidad: "VEHICULO",
+      idEntidad: vehiculo.id,
+      descripcion: `Eliminó el vehículo ${vehiculo.patente}`,
+      antes,
+    });
 
     return res.status(200).json({
       success: true,

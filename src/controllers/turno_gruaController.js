@@ -2,6 +2,10 @@ import { Op } from "sequelize";
 import sequelize from "../config/db.js";
 import { Acarreo, Grua, Sucursal, Turno_Grua, Usuario, Vehiculo } from "../models/index.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
+import {
+  describirGrua,
+  turnoConFecha,
+} from "../utils/auditoriaTexto.js";
 import { construirInformePdf, formatoFecha } from "../utils/informePdf.js";
 
 /** Include de los usuarios que participan de un turno de grúa. */
@@ -257,16 +261,19 @@ export const finalizarTodosLosTurnosGruasPorSucursal = async (req, res) => {
       },
     );
 
-    turnosActivos.forEach(async (turno) => {
+    for (const turno of turnosActivos) {
       await registrarAuditoria({
         usuario: req.user,
         entidad: "GRUA",
         idEntidad: turno.id_grua,
         accion: "FINALIZAR_TURNO",
-        descripcion: `Se cerro el turno de la grua patente ${turno.Grua.patente} de la fecha turno ${turno.fecha_inicio}`,
+        descripcion: `Se cerró el ${turnoConFecha(
+          turno.turno,
+          turno.fecha_inicio,
+        )}, ${describirGrua(turno.Grua)}`,
         req,
       });
-    });
+    }
 
     await transaction.commit();
 
@@ -312,7 +319,9 @@ export const agregarIncidencia = async (req, res) => {
       .json({ error: "La incidencia no puede estar vacía" });
   }
   try {
-    const turnoGrua = await Turno_Grua.findByPk(id_turno_grua);
+    const turnoGrua = await Turno_Grua.findByPk(id_turno_grua, {
+      include: [{ model: Grua, attributes: ["numero", "patente"] }],
+    });
     if (!turnoGrua) {
       return res.status(404).json({ error: "Turno de grua no encontrado" });
     }
@@ -334,9 +343,12 @@ export const agregarIncidencia = async (req, res) => {
     await registrarAuditoria({
       usuario: req.user,
       entidad: "TURNO_GRUA",
-      idEntidad: turnoGrua.id_grua,
+      idEntidad: turnoGrua.id,
       accion: "ACTUALIZAR",
-      descripcion: `Se agrego una incidencia al turno de grua: ${id_turno_grua}`,
+      descripcion: `Se agregó una incidencia al ${turnoConFecha(
+        turnoGrua.turno,
+        turnoGrua.fecha_inicio,
+      )}, ${describirGrua(turnoGrua.Grua)}`,
       req,
       despues: { incidencias: incidenciaFormateada },
     });
@@ -369,7 +381,10 @@ export const editarTurnoGrua = async (req, res) => {
   try {
     transaction = await sequelize.transaction();
 
-    const turnoGrua = await Turno_Grua.findByPk(id, { transaction });
+    const turnoGrua = await Turno_Grua.findByPk(id, {
+      include: [{ model: Grua, attributes: ["numero", "patente"] }],
+      transaction,
+    });
     if (!turnoGrua) {
       await transaction.rollback();
       return res.status(404).json({ error: "Turno de grua no encontrado" });
@@ -418,9 +433,12 @@ export const editarTurnoGrua = async (req, res) => {
     await registrarAuditoria({
       usuario: req.user,
       entidad: "TURNO_GRUA",
-      idEntidad: turnoGrua.id_grua,
-      accion: "EDITAR_TURNO_GRUA",
-      descripcion: `Editó los integrantes del turno de grua ${turnoGrua.id}`,
+      idEntidad: turnoGrua.id,
+      accion: "EDITAR",
+      descripcion: `Editó los integrantes del ${turnoConFecha(
+        turnoGrua.turno,
+        turnoGrua.fecha_inicio,
+      )}, ${describirGrua(turnoGrua.Grua)}`,
       req,
       antes,
       despues: {
@@ -448,7 +466,10 @@ export const finalizarTurno = async (req, res) => {
   try {
     transaction = await sequelize.transaction();
 
-    const turnoGrua = await Turno_Grua.findByPk(id_turno_grua, { transaction });
+    const turnoGrua = await Turno_Grua.findByPk(id_turno_grua, {
+      include: [{ model: Grua, attributes: ["numero", "patente"] }],
+      transaction,
+    });
     if (!turnoGrua) {
       await transaction.rollback();
       return res.status(404).json({ error: "Turno de grua no encontrado" });
@@ -464,9 +485,12 @@ export const finalizarTurno = async (req, res) => {
     await registrarAuditoria({
       usuario: req.user,
       entidad: "TURNO_GRUA",
-      idEntidad: turnoGrua.id_grua,
+      idEntidad: turnoGrua.id,
       accion: "FINALIZAR_TURNO",
-      descripcion: `Se cerro el turno de grua: ${id_turno_grua}`,
+      descripcion: `Se cerró el ${turnoConFecha(
+        turnoGrua.turno,
+        turnoGrua.fecha_inicio,
+      )}, ${describirGrua(turnoGrua.Grua)}`,
       req,
     });
 

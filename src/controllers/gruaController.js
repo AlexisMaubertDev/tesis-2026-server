@@ -5,6 +5,11 @@ import Sucursal from "../models/Sucursal.model.js";
 import Turno_Grua from "../models/TurnoGrua.model.js";
 import Usuario from "../models/Usuario.model.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
+import {
+  describirGrua,
+  nombrePersona,
+  turnoConFecha,
+} from "../utils/auditoriaTexto.js";
 
 export const obtenerGruas = async (req, res) => {
   try {
@@ -88,7 +93,11 @@ export const crearGrua = async (req, res) => {
       accion: "CREAR",
       entidad: "GRUA",
       idEntidad: gruaCreada.id,
-      descripcion: `Grua ${gruaCreada.patente} creada exitosamente`,
+      descripcion: `Creó ${describirGrua(gruaCreada)}${
+        req.body.Sucursal?.nombre
+          ? ` en la sucursal ${req.body.Sucursal.nombre}`
+          : ""
+      }`,
       despues: gruaCreada,
     });
 
@@ -159,6 +168,8 @@ export const editarGrua = async (req, res) => {
       });
     }
 
+    const antes = grua.toJSON();
+
     await grua.update({
       patente: patenteGrua,
       modelo: modeloGrua,
@@ -174,8 +185,9 @@ export const editarGrua = async (req, res) => {
       accion: "EDITAR",
       entidad: "GRUA",
       idEntidad: grua.id,
-      descripcion: `Grua ${grua.patente} editada exitosamente`,
-      despues: grua,
+      descripcion: `Editó ${describirGrua(grua)}`,
+      antes,
+      despues: grua.toJSON(),
     });
 
     return res.status(200).json({
@@ -344,7 +356,12 @@ export const asignarGrua = async (req, res) => {
       accion: "ASIGNAR",
       entidad: "GRUA",
       idEntidad: grua.id,
-      descripcion: `El supervisor ${req.user.nombre} ${req.user.apellido} asignó la grúa ${grua.patente} al turno ${turno} con el chofer ${chofer.nombre} ${chofer.apellido} y enganchador ${enganchador.nombre} ${enganchador.apellido}`,
+      descripcion: `Asignó ${describirGrua(grua)} al ${turnoConFecha(
+        turno,
+        turnoGrua.fecha_inicio,
+      )} con el chofer ${nombrePersona(chofer)} y el enganchador ${nombrePersona(
+        enganchador,
+      )}`,
       antes: prevData,
       despues: grua,
     });

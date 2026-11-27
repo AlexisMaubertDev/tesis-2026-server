@@ -3,6 +3,8 @@ import { Op } from "sequelize";
 import Barrera from "../models/Barrera.model.js";
 import Sucursal from "../models/Sucursal.model.js";
 import { Turno_Barrera, Turno_Barrera_Usuario, Usuario } from "../models/index.js";
+import { registrarAuditoria } from "../utils/auditoria.js";
+import { describirBarrera } from "../utils/auditoriaTexto.js";
 
 export const obtenerBarreras = async (req, res) => {
   try {
@@ -71,6 +73,18 @@ export const crearBarrera = async (req, res) => {
 
     await transaction.commit();
 
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "CREAR",
+      entidad: "BARRERA",
+      idEntidad: barreraCreada.id,
+      descripcion: `Creó ${describirBarrera(barreraCreada)}${
+        Sucursal?.nombre ? ` en la sucursal ${Sucursal.nombre}` : ""
+      }`,
+      despues: barreraCreada,
+    });
+
     return res.status(201).json({
       success: true,
       data: barreraCreada,
@@ -134,6 +148,8 @@ export const editarBarrera = async (req, res) => {
       });
     }
 
+    const antes = barrera.toJSON();
+
     const updatedBarrera = await barrera.update({
       ubicacion: String(ubicacion).trim(),
       id_sucursal: Sucursal.id,
@@ -147,6 +163,17 @@ export const editarBarrera = async (req, res) => {
       });
     }
     await transaction.commit();
+
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "EDITAR",
+      entidad: "BARRERA",
+      idEntidad: barrera.id,
+      descripcion: `Editó ${describirBarrera(updatedBarrera)}`,
+      antes,
+      despues: updatedBarrera.toJSON(),
+    });
 
     return res.status(201).json({
       success: true,

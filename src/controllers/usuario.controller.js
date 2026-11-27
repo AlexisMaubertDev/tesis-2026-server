@@ -1,9 +1,8 @@
 import { Caja, Turno_Caja, Turno_Grua, Turno_Barrera, Turno_Barrera_Usuario, Usuario } from "../models/index.js";
 import Sucursal from "../models/Sucursal.model.js";
 import bcrypt from "bcryptjs";
-import { crearEntidad } from "../utils/crearEntidad.js";
-import sequelize from "../config/db.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
+import { nombrePersona } from "../utils/auditoriaTexto.js";
 
 export const obtenerUsuarios = async (req, res) => {
   try {
@@ -153,14 +152,17 @@ export const crearUsuario = async (req, res) => {
       id_sucursal: Sucursal.id,
     });
 
+    const usuarioAuditado = usuario.toJSON();
+    delete usuarioAuditado.password;
+
     await registrarAuditoria({
       req,
       usuario: req.user,
       accion: "CREAR",
       entidad: "USUARIO",
       idEntidad: usuario.id,
-      descripcion: `Creó el usuario ${usuario.nombre} ${usuario.apellido}`,
-      despues: usuario,
+      descripcion: `Creó el usuario ${nombrePersona(usuario)} con rol ${usuario.rol}`,
+      despues: usuarioAuditado,
     });
 
     return res.status(201).json({
@@ -239,9 +241,14 @@ export const editarUsuario = async (req, res) => {
       datos.password = await bcrypt.hash(password, salt);
     }
 
+    // El "antes" se toma antes de actualizar y sin el hash de la contraseña.
     const antes = usuario.toJSON();
+    delete antes.password;
 
     await usuario.update(datos);
+
+    const despuesUsuario = usuario.toJSON();
+    delete despuesUsuario.password;
 
     await registrarAuditoria({
       req,
@@ -249,9 +256,9 @@ export const editarUsuario = async (req, res) => {
       accion: "EDITAR",
       entidad: "USUARIO",
       idEntidad: usuario.id,
-      descripcion: `Editó el usuario ${usuario.nombre} ${usuario.apellido}`,
+      descripcion: `Editó el usuario ${nombrePersona(usuario)}`,
       antes,
-      despues: usuario,
+      despues: despuesUsuario,
     });
 
     const usuarioActualizado = usuario.toJSON();
@@ -293,7 +300,19 @@ export const eliminarUsuario = async (req, res) => {
       });
     }
 
+    const antes = usuario.toJSON();
+
     await usuario.destroy();
+
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "ELIMINAR",
+      entidad: "USUARIO",
+      idEntidad: usuario.id,
+      descripcion: `Eliminó el usuario ${nombrePersona(usuario)}`,
+      antes,
+    });
 
     return res.status(200).json({
       success: true,

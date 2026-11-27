@@ -1,6 +1,7 @@
 import sequelize from "../config/db.js";
 import { Tarifa } from "../models/index.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
+import { importe } from "../utils/auditoriaTexto.js";
 
 // Los importes se guardan con 2 decimales: redondear antes de comparar evita
 // falsos negativos por errores de punto flotante (0.1 + 0.2 !== 0.3).
@@ -130,7 +131,7 @@ export const crearTarifa = async (req, res) => {
       accion: "CREAR",
       entidad: "TARIFA",
       idEntidad: tarifa.id,
-      descripcion: `Configuró la tarifa de acarreo $${nuevoAcarreo} y estadía $${nuevaEstadia}`,
+      descripcion: `Configuró la tarifa de acarreo ${importe(nuevoAcarreo)} y estadía ${importe(nuevaEstadia)}`,
       antes: vigente
         ? {
             acarreo: aImporte(vigente.acarreo),

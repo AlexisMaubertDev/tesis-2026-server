@@ -12,6 +12,7 @@ import {
   Vehiculo,
 } from "../models/index.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
+import { importe } from "../utils/auditoriaTexto.js";
 import {
   HORAS_POR_ESTADIA,
   MAX_ESTADIAS,
@@ -343,7 +344,7 @@ export const crearCobro = async (req, res) => {
       accion: "REGISTRAR_COBRO",
       entidad: "COBRO",
       idEntidad: cobro.id,
-      descripcion: `Se registró el cobro del acarreo ${acarreo.id} por $${sinSistema ? pagadoNum : totalNum}${sinSistema && detalleSinSistema ? ` (sincronizado sin sistema: ${detalleSinSistema})` : ""}`,
+      descripcion: `Se registró el cobro del vehículo ${acarreo.Vehiculo?.patente ?? "-"} por ${importe(sinSistema ? pagadoNum : totalNum)}${sinSistema && detalleSinSistema ? ` (sincronizado sin sistema: ${detalleSinSistema})` : ""}`,
       antes: { estado: "EN_PLAYA" },
       despues: { estado: "COBRADO", cobro: cobro.toJSON() },
     });

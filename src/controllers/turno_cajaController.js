@@ -9,9 +9,9 @@ import {
   Acarreo,
   Vehiculo,
 } from "../models/index.js";
-import { crearEntidad } from "../utils/crearEntidad.js";
 import { editarEntidad } from "../utils/editarEntidad.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
+import { describirCaja, turnoConFecha } from "../utils/auditoriaTexto.js";
 import { resolverFechaOperacion } from "../utils/fechas.js";
 import { esUuidValido } from "../utils/uuid.js";
 import { armarInformeCobros } from "./informeController.js";
@@ -53,24 +53,19 @@ export const empezarTurnoCaja = async (req, res) => {
 
     transaction = await sequelize.transaction();
 
-    const turnoCaja = await crearEntidad({
-      modelo: Turno_Caja,
-      datos: { id_caja, turno, id_usuario: usuario.id, apertura },
-      entidad: "TURNO_CAJA",
-      descripcion: `Empezó el turno de ${turno} para la caja con ID ${id_caja}`,
-      req,
-      usuario,
-      transaction,
-    });
+    const turnoCaja = await Turno_Caja.create(
+      { id_caja, turno, id_usuario: usuario.id, apertura },
+      { transaction },
+    );
 
     await registrarAuditoria({
       req,
       usuario,
       accion: "INICIAR_TURNO",
       entidad: "TURNO_CAJA",
-      idEntidad: turnoCaja.toJSON().id,
-      descripcion: `Empezó el turno ${turno} para la caja número ${caja.numero_caja}`,
-      datosNuevos: turnoCaja.toJSON(),
+      idEntidad: turnoCaja.id,
+      descripcion: `Inició el ${turnoConFecha(turno, apertura)}, ${describirCaja(caja)}`,
+      despues: turnoCaja.toJSON(),
     });
 
     await transaction.commit();
@@ -129,7 +124,9 @@ export const cerrarTurnoCaja = async (req, res) => {
   }
 
   try {
-    const turnoCaja = await Turno_Caja.findByPk(id);
+    const turnoCaja = await Turno_Caja.findByPk(id, {
+      include: [{ model: Caja, attributes: ["numero_caja", "referencia"] }],
+    });
 
     if (!turnoCaja) {
       return res.status(404).json({
@@ -181,7 +178,11 @@ export const cerrarTurnoCaja = async (req, res) => {
         efectivo_contado: efectivoContado,
       },
       entidad: "TURNO_CAJA",
-      descripcion: `Cerro el turno de ${turnoCaja.turno} para la caja con ID ${turnoCaja.id_caja}`,
+      accion: "FINALIZAR_TURNO",
+      descripcion: `Cerró el ${turnoConFecha(
+        turnoCaja.turno,
+        turnoCaja.apertura,
+      )}, ${describirCaja(turnoCaja.Caja)}`,
       req,
       usuario,
       transaction,
@@ -427,7 +428,9 @@ export const agregarIncidenciaTurnoCaja = async (req, res) => {
   }
 
   try {
-    const turno = await Turno_Caja.findByPk(id);
+    const turno = await Turno_Caja.findByPk(id, {
+      include: [{ model: Caja, attributes: ["numero_caja", "referencia"] }],
+    });
 
     if (!turno) {
       return res
@@ -447,7 +450,10 @@ export const agregarIncidenciaTurnoCaja = async (req, res) => {
       entidad: "TURNO_CAJA",
       idEntidad: turno.id,
       accion: "AGREGAR_INCIDENCIA_TURNO_CAJA",
-      descripcion: `Se agregó una incidencia al turno de caja ${turno.id}`,
+      descripcion: `Se agregó una incidencia al ${turnoConFecha(
+        turno.turno,
+        turno.apertura,
+      )}, ${describirCaja(turno.Caja)}`,
       antes: { incidencias: incidenciasPrevias || null },
       despues: { incidencias: nuevas },
       req,

@@ -10,6 +10,7 @@ export const editarEntidad = async ({
   usuario,
   transaction,
   validacion,
+  accion = "EDITAR",
 }) => {
   const registro = await modelo.findByPk(id, { transaction });
 
@@ -28,7 +29,7 @@ export const editarEntidad = async ({
   await registrarAuditoria({
     req,
     usuario,
-    accion: "EDITAR",
+    accion,
     entidad,
     idEntidad: registro.id,
     descripcion,

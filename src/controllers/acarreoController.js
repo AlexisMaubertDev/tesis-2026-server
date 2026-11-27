@@ -14,6 +14,10 @@ import {
 } from "../models/index.js";
 import { registrarAuditoria } from "../utils/auditoria.js";
 import {
+  describirBarrera,
+  turnoConFecha,
+} from "../utils/auditoriaTexto.js";
+import {
   formatoFechaOperacion,
   resolverFechaOperacion,
 } from "../utils/fechas.js";
@@ -183,7 +187,8 @@ export const crearAcarreo = async (req, res) => {
       accion: "CREAR",
       entidad: "ACARREO",
       idEntidad: acarreo.id,
-      descripcion: `Se creo el acarreo: ${acarreo.id}`,
+      descripcion: `Se creó el acarreo del vehículo ${vehiculo_creado.patente} (${vehiculo_creado.marca} ${vehiculo_creado.modelo}) — ${turnoConFecha(turno_grua.turno, turno_grua.fecha_inicio)}`,
+      despues: acarreo.toJSON(),
     });
 
     return res.status(201).json({
@@ -327,7 +332,14 @@ export const getAcarreos = async (req, res) => {
 const obtenerTurnoBarreraActivo = async (idUsuario) => {
   const asignacion = await Turno_Barrera_Usuario.findOne({
     where: { id_usuario: idUsuario },
-    include: [{ model: Turno_Barrera, where: { activo: true }, required: true }],
+    include: [
+      {
+        model: Turno_Barrera,
+        where: { activo: true },
+        required: true,
+        include: [{ model: Barrera, attributes: ["ubicacion"] }],
+      },
+    ],
   });
 
   return asignacion?.turno_barrera ?? null;
@@ -351,7 +363,9 @@ export const ingresarAcarreoAPlaya = async (req, res) => {
     // Fecha/hora local del ingreso (puede llegar de la outbox offline).
     const { fecha: fechaIngreso } = resolverFechaOperacion(req.body);
 
-    const acarreo = await Acarreo.findByPk(id);
+    const acarreo = await Acarreo.findByPk(id, {
+      include: [{ model: Vehiculo, attributes: ["patente"] }],
+    });
 
     if (!acarreo) {
       return res
@@ -394,7 +408,11 @@ export const ingresarAcarreoAPlaya = async (req, res) => {
       accion: "INGRESAR_A_PLAYA",
       entidad: "ACARREO",
       idEntidad: acarreo.id,
-      descripcion: `Se ingresó a playa el acarreo ${acarreo.id}`,
+      descripcion: `Se ingresó a playa el vehículo ${acarreo.Vehiculo?.patente ?? "-"}${
+        turnoBarrera
+          ? ` — ${turnoConFecha(turnoBarrera.turno, turnoBarrera.fecha_inicio)}, ${describirBarrera(turnoBarrera.Barrera)}`
+          : ""
+      }`,
     });
 
     return res.status(200).json({
@@ -428,7 +446,9 @@ export const egresarAcarreo = async (req, res) => {
     // Fecha/hora local del egreso (puede llegar de la outbox offline).
     const { fecha: fechaEgreso } = resolverFechaOperacion(req.body);
 
-    const acarreo = await Acarreo.findByPk(id);
+    const acarreo = await Acarreo.findByPk(id, {
+      include: [{ model: Vehiculo, attributes: ["patente"] }],
+    });
 
     if (!acarreo) {
       return res
@@ -472,7 +492,7 @@ export const egresarAcarreo = async (req, res) => {
       accion: "EGRESAR_DE_PLAYA",
       entidad: "ACARREO",
       idEntidad: acarreo.id,
-      descripcion: `Se dio salida al acarreo ${acarreo.id}`,
+      descripcion: `Se dio salida de playa al vehículo ${acarreo.Vehiculo?.patente ?? "-"}`,
     });
 
     return res.status(200).json({
@@ -509,7 +529,9 @@ export const sacarSinCargo = async (req, res) => {
       });
     }
 
-    const acarreo = await Acarreo.findByPk(id);
+    const acarreo = await Acarreo.findByPk(id, {
+      include: [{ model: Vehiculo, attributes: ["patente"] }],
+    });
 
     if (!acarreo) {
       return res
@@ -549,7 +571,7 @@ export const sacarSinCargo = async (req, res) => {
       accion: "SALIDA_SIN_CARGO",
       entidad: "ACARREO",
       idEntidad: acarreo.id,
-      descripcion: incidencia,
+      descripcion: `Salida sin cargo del vehículo ${acarreo.Vehiculo?.patente ?? "-"} (${formatoFechaOperacion(fechaEgreso)}): ${motivo.trim()}`,
       antes: { estado: "EN_PLAYA", incidencias: incidenciasPrevias ?? null },
       despues: { estado: "SIN_CARGO", incidencia },
     });
@@ -583,7 +605,9 @@ export const agregarIncidenciaAcarreo = async (req, res) => {
       });
     }
 
-    const acarreo = await Acarreo.findByPk(id);
+    const acarreo = await Acarreo.findByPk(id, {
+      include: [{ model: Vehiculo, attributes: ["patente"] }],
+    });
 
     if (!acarreo) {
       return res
@@ -604,7 +628,7 @@ export const agregarIncidenciaAcarreo = async (req, res) => {
       accion: "AGREGAR_INCIDENCIA_ACARREO",
       entidad: "ACARREO",
       idEntidad: acarreo.id,
-      descripcion: `Se agregó una incidencia al acarreo ${acarreo.id}`,
+      descripcion: `Se agregó una incidencia al acarreo del vehículo ${acarreo.Vehiculo?.patente ?? "-"}`,
       antes: { incidencias: incidenciasPrevias ?? null },
       despues: { incidencia: incidencias.trim() },
     });

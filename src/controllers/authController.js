@@ -4,6 +4,7 @@ import { Usuario } from "../models/index.js";
 
 import dotenv from "dotenv";
 import { registrarAuditoria } from "../utils/auditoria.js";
+import { nombrePersona } from "../utils/auditoriaTexto.js";
 dotenv.config();
 
 export const login = async (req, res) => {
@@ -74,7 +75,7 @@ export const login = async (req, res) => {
       accion: "LOGIN",
       entidad: "USUARIO",
       idEntidad: user.id,
-      descripcion: "Inicio de sesión",
+      descripcion: `Inició sesión ${nombrePersona(user)}`,
     });
     // No devolver el hash de la contraseña: el front lo persiste en redux-persist
     // y quedaría guardado en el localStorage del navegador.
@@ -105,7 +106,7 @@ export const cerrarSesion = async (req, res) => {
       accion: "LOGOUT",
       entidad: "USUARIO",
       idEntidad: req.user.id,
-      descripcion: "Cierre de sesión",
+      descripcion: `Cerró sesión ${nombrePersona(req.user)}`,
     });
     res.status(200).json({ success: true, message: "Sesión cerrada" });
   } catch (error) {

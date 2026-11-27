@@ -1,4 +1,25 @@
 import { registrarAuditoria } from "./auditoria.js";
+import {
+  describirBarrera,
+  describirCaja,
+  describirGrua,
+} from "./auditoriaTexto.js";
+
+// Descripción legible del recurso sincronizado (sin IDs).
+const describirEntidad = (entidad, item) => {
+  switch (entidad) {
+    case "CAJA":
+      return describirCaja(item);
+    case "BARRERA":
+      return describirBarrera(item);
+    case "GRUA":
+      return describirGrua(item);
+    default:
+      return item?.nombre
+        ? `${entidad.toLowerCase()} "${item.nombre}"`
+        : entidad.toLowerCase();
+  }
+};
 
 export const sincronizarEntidades = async ({
   modelo,
@@ -26,6 +47,9 @@ export const sincronizarEntidades = async ({
     if (item.id && actualesMap.has(item.id)) {
       const actual = actualesMap.get(item.id);
 
+      // El "antes" se toma antes de aplicar los cambios.
+      const antes = actual.toJSON();
+
       await actual.update(item, { transaction });
 
       await registrarAuditoria({
@@ -34,9 +58,9 @@ export const sincronizarEntidades = async ({
         accion: "EDITAR",
         entidad,
         idEntidad: actual.id,
-        descripcion: `Editó ${entidad.toLowerCase()} ${actual.id}`,
-        antes: actual.toJSON(),
-        despues: item,
+        descripcion: `Editó ${describirEntidad(entidad, actual)}`,
+        antes,
+        despues: actual.toJSON(),
       });
 
       resultados.push(actual);
@@ -55,7 +79,7 @@ export const sincronizarEntidades = async ({
         accion: "CREAR",
         entidad,
         idEntidad: created.id,
-        descripcion: `Creó ${entidad.toLowerCase()}`,
+        descripcion: `Creó ${describirEntidad(entidad, created)}`,
         despues: created,
       });
 
@@ -74,7 +98,7 @@ export const sincronizarEntidades = async ({
         accion: "ELIMINAR",
         entidad,
         idEntidad: actual.id,
-        descripcion: `Eliminó ${entidad.toLowerCase()}`,
+        descripcion: `Eliminó ${describirEntidad(entidad, actual)}`,
         antes: actual.toJSON(),
       });
 

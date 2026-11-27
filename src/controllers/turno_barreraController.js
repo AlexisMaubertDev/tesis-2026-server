@@ -12,6 +12,11 @@ import {
 } from "../models/index.js";
 import { Op } from "sequelize";
 import { registrarAuditoria } from "../utils/auditoria.js";
+import {
+  describirBarrera,
+  nombrePersona,
+  turnoConFecha,
+} from "../utils/auditoriaTexto.js";
 import { construirInformePdf, formatoFecha } from "../utils/informePdf.js";
 
 /** Barrera del turno con su sucursal. */
@@ -171,7 +176,10 @@ export const asignarBarrera = async (req, res) => {
   try {
     transaction = await sequelize.transaction();
 
-    const barrera = await Barrera.findByPk(id_barrera, { transaction });
+    const barrera = await Barrera.findByPk(id_barrera, {
+      include: [{ model: Sucursal, attributes: ["nombre"] }],
+      transaction,
+    });
     if (!barrera) {
       await transaction.rollback();
       return res.status(404).json({ error: "Barrera no encontrada" });
@@ -233,7 +241,12 @@ export const asignarBarrera = async (req, res) => {
       entidad: "BARRERA",
       idEntidad: barrera.id,
       accion: "ASIGNAR_TURNO_BARRERA",
-      descripcion: `Se asignó un turno de barrera (${turno}) con ${id_usuarios.length} playero(s)`,
+      descripcion: `Asignó el ${turnoConFecha(
+        turno,
+        turnoBarrera.fecha_inicio,
+      )}, ${describirBarrera(barrera)}${
+        barrera.Sucursal?.nombre ? ` (${barrera.Sucursal.nombre})` : ""
+      } con los playeros ${usuarios.map(nombrePersona).join(", ")}`,
       req,
     });
 
@@ -252,7 +265,9 @@ export const asignarBarrera = async (req, res) => {
 export const finalizarTurnoBarrera = async (req, res) => {
   const { id } = req.params;
   try {
-    const turno = await Turno_Barrera.findByPk(id);
+    const turno = await Turno_Barrera.findByPk(id, {
+      include: [{ model: Barrera, attributes: ["ubicacion"] }],
+    });
     if (!turno) {
       return res.status(404).json({ error: "Turno de barrera no encontrado" });
     }
@@ -265,7 +280,10 @@ export const finalizarTurnoBarrera = async (req, res) => {
       entidad: "BARRERA",
       idEntidad: turno.id_barrera,
       accion: "FINALIZAR_TURNO_BARRERA",
-      descripcion: `Se finalizó el turno de barrera ${turno.id}`,
+      descripcion: `Se finalizó el ${turnoConFecha(
+        turno.turno,
+        turno.fecha_inicio,
+      )}, ${describirBarrera(turno.Barrera)}`,
       req,
     });
     return res.status(200).json({ success: true, message: "Turno finalizado exitosamente" });
@@ -279,7 +297,9 @@ export const agregarIncidenciasBarrera = async (req, res) => {
   const { id } = req.params;
   const { incidencias } = req.body;
   try {
-    const turno = await Turno_Barrera.findByPk(id);
+    const turno = await Turno_Barrera.findByPk(id, {
+      include: [{ model: Barrera, attributes: ["ubicacion"] }],
+    });
     if (!turno) {
       return res.status(404).json({ error: "Turno de barrera no encontrado" });
     }
@@ -292,7 +312,10 @@ export const agregarIncidenciasBarrera = async (req, res) => {
       entidad: "BARRERA",
       idEntidad: turno.id_barrera,
       accion: "AGREGAR_INCIDENCIA_BARRERA",
-      descripcion: `Se agregó una incidencia al turno de barrera ${turno.id}`,
+      descripcion: `Se agregó una incidencia al ${turnoConFecha(
+        turno.turno,
+        turno.fecha_inicio,
+      )}, ${describirBarrera(turno.Barrera)}`,
       req,
     });
     return res.status(200).json({ success: true, message: "Incidencia agregada", data: turno });
@@ -325,7 +348,10 @@ export const editarTurnoBarrera = async (req, res) => {
   try {
     transaction = await sequelize.transaction();
 
-    const turno = await Turno_Barrera.findByPk(id, { transaction });
+    const turno = await Turno_Barrera.findByPk(id, {
+      include: [{ model: Barrera, attributes: ["ubicacion"] }],
+      transaction,
+    });
     if (!turno) {
       await transaction.rollback();
       return res.status(404).json({ error: "Turno de barrera no encontrado" });
@@ -369,11 +395,16 @@ export const editarTurnoBarrera = async (req, res) => {
       usuario: req.user,
       entidad: "TURNO_BARRERA",
       idEntidad: turno.id_barrera,
-      accion: "EDITAR_TURNO_BARRERA",
-      descripcion: `Editó los playeros del turno de barrera ${turno.id}`,
+      accion: "EDITAR",
+      descripcion: `Editó los playeros del ${turnoConFecha(
+        turno.turno,
+        turno.fecha_inicio,
+      )}, ${describirBarrera(turno.Barrera)}: ${usuariosValidos
+        .map(nombrePersona)
+        .join(", ")}`,
       req,
       despues: {
-        usuarios: usuariosValidos.map((u) => `${u.nombre} ${u.apellido}`),
+        usuarios: usuariosValidos.map((u) => nombrePersona(u)),
         incidencias: incidenciaFormateada,
       },
     });
@@ -411,12 +442,17 @@ export const finalizarTodosTurnosBarrera = async (req, res) => {
       { activo: false, fecha_fin: new Date() },
       { where: { id: ids } },
     );
+    const sucursal = await Sucursal.findByPk(id_sucursal, {
+      attributes: ["nombre"],
+    });
     await registrarAuditoria({
       usuario: req.user,
       entidad: "BARRERA",
       idEntidad: id_sucursal,
       accion: "FINALIZAR_TODOS_TURNOS_BARRERA",
-      descripcion: `Se finalizaron ${ids.length} turno(s) de barrera de la sucursal`,
+      descripcion: `Se finalizaron ${ids.length} turno(s) de barrera${
+        sucursal?.nombre ? ` de la sucursal ${sucursal.nombre}` : ""
+      }`,
       req,
     });
     return res.status(200).json({

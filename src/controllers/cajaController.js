@@ -1,6 +1,9 @@
 import sequelize from "../config/db.js";
 import { Op } from "sequelize";
 import { Caja, Sucursal, Turno_Caja, Usuario } from "../models/index.js";
+import { registrarAuditoria } from "../utils/auditoria.js";
+import { editarEntidad } from "../utils/editarEntidad.js";
+import { describirCaja } from "../utils/auditoriaTexto.js";
 
 export const obtenerCajas = async (req, res) => {
   try {
@@ -65,7 +68,9 @@ export const crearCaja = async (req, res) => {
       accion: "CREAR",
       entidad: "CAJA",
       idEntidad: cajaCreada.id,
-      descripcion: `Creó la caja N°${cajaCreada.numero_caja}, con referencia "${cajaCreada.referencia}"`,
+      descripcion: `Creó ${describirCaja(cajaCreada)}${
+        Sucursal?.nombre ? ` en la sucursal ${Sucursal.nombre}` : ""
+      }`,
       despues: cajaCreada,
     });
     await transaction.commit();
@@ -90,7 +95,10 @@ export const editarCaja = async (req, res) => {
       modelo: Caja,
       id,
       entidad: "CAJA",
-      descripcion: `Editó la caja N°${numero_caja} de la sucursal ${Sucursal.nombre}`,
+      descripcion: `Editó ${describirCaja({
+        numero_caja,
+        referencia,
+      })} de la sucursal ${Sucursal.nombre}`,
       datos: {
         numero_caja,
         referencia,
