@@ -14,6 +14,7 @@ import {
   getAcarreosPorPatente,
   ingresarAcarreoAPlaya,
   sacarSinCargo,
+  senalarSiniestro,
 } from "../controllers/acarreoController.js";
 
 const router = express.Router();
@@ -38,6 +39,14 @@ router
     playaMiddleware,
     idempotencyMiddleware,
     egresarAcarreo,
+  )
+  // Señalar siniestro: playero con turno de barrera, supervisor o sistemas.
+  // Requiere una incidencia de texto; marca `tuvo_siniestro`.
+  .put(
+    "/:id/siniestro",
+    authMiddleware,
+    playaMiddleware,
+    senalarSiniestro,
   )
   // Salida sin cargo: sólo el supervisor (o sistemas) puede autorizarla.
   .put(

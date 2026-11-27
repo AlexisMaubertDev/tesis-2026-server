@@ -645,3 +645,85 @@ export const agregarIncidenciaAcarreo = async (req, res) => {
       .json({ success: false, message: "Error en el servidor" });
   }
 };
+
+/**
+ * PUT /acarreos/:id/siniestro — señala siniestro en un acarreo (barrera).
+ *
+ * Requiere una incidencia de texto obligatoria, que se acumula al historial
+ * de incidencias del acarreo, y marca `tuvo_siniestro = true` si no lo estaba.
+ * Playero con turno de barrera asignado, supervisor o sistemas.
+ */
+export const senalarSiniestro = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { incidencias } = req.body;
+
+    if (!esUuidValido(id)) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Acarreo no encontrado" });
+    }
+
+    if (typeof incidencias !== "string" || incidencias.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "La incidencia es obligatoria",
+      });
+    }
+
+    // Un playero sólo puede señalar siniestro con turno de barrera activo.
+    if (req.user.rol === "PLAYERO") {
+      const turnoBarrera = await obtenerTurnoBarreraActivo(req.user.id);
+
+      if (!turnoBarrera) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Necesitás un turno de barrera activo para señalar siniestro",
+        });
+      }
+    }
+
+    const acarreo = await Acarreo.findByPk(id, {
+      include: [{ model: Vehiculo, attributes: ["patente"] }],
+    });
+
+    if (!acarreo) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Acarreo no encontrado" });
+    }
+
+    const incidenciasPrevias = acarreo.incidencias;
+    const yaTeniaSiniestro = acarreo.tuvo_siniestro === true;
+    const incidencia = `Siniestro señalado: ${incidencias.trim()}`;
+    const nuevas = acumularIncidencia(incidenciasPrevias, incidencia);
+
+    await acarreo.update({
+      incidencias: nuevas,
+      tuvo_siniestro: true,
+    });
+
+    await registrarAuditoria({
+      req,
+      usuario: req.user,
+      accion: "AGREGAR_INCIDENCIA_ACARREO",
+      entidad: "ACARREO",
+      idEntidad: acarreo.id,
+      descripcion: `Se señaló siniestro del vehículo ${acarreo.Vehiculo?.patente ?? "-"}: ${incidencias.trim()}`,
+      antes: { tuvo_siniestro: yaTeniaSiniestro, incidencias: incidenciasPrevias ?? null },
+      despues: { tuvo_siniestro: true, incidencia },
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: acarreo,
+      message: "Siniestro señalado y incidencia agregada",
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error en el servidor" });
+  }
+};
