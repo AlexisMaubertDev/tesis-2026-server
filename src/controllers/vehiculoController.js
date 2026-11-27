@@ -343,23 +343,26 @@ const construirDatosInformeVehiculos = async (req) => {
 
 export const obtenerVehiculos = async (req, res) => {
   try {
-    // La tabla y los homes piden la lista sin búsqueda: los vehículos
-    // egresados no vienen (su historial queda disponible cuando se los busca
-    // por patente/modelo en la barra de búsqueda).
-    const busqueda = textoDeQuery(req.query.busqueda);
+    const filtros = leerFiltrosVehiculos(req);
     let data = await obtenerVehiculosConUltimoAcarreo();
 
-    if (!busqueda) {
+    // La tabla y los homes piden la lista sin búsqueda: los vehículos
+    // egresados no vienen (su historial queda disponible cuando se los busca
+    // por patente/modelo en la barra de búsqueda). Si se filtra por estado,
+    // el filtro de abajo decide qué estados se incluyen.
+    if (!filtros.busqueda && filtros.estados.length === 0) {
       data = data.filter(
         (vehiculo) => vehiculo.ultimo_acarreo_estado !== "RETIRADO",
       );
     }
 
-    // Paginado opcional (la web carga 20 vehículos y el resto en segundo
-    // plano). El corte se aplica después de filtrar y ordenar.
-    const limit = Number(req.query.limit);
-    const offset = Number(req.query.offset) || 0;
+    data = filtrarVehiculos(data, filtros);
+
+    // Paginado opcional: la web pide de a 20 (limit/offset) y recibe el total
+    // de registros que cumplen los filtros para armar los controles de página.
     const total = data.length;
+    const limit = Number(req.query.limit);
+    const offset = Math.max(0, Number(req.query.offset) || 0);
 
     if (Number.isInteger(limit) && limit > 0) {
       data = data.slice(offset, offset + limit);
@@ -372,6 +375,12 @@ export const obtenerVehiculos = async (req, res) => {
       message: "Vehiculos obtenidos exitosamente",
     });
   } catch (err) {
+    if (err instanceof ErrorFiltro) {
+      return res
+        .status(err.status)
+        .json({ success: false, message: err.message });
+    }
+
     return res.status(500).json({ success: false, message: err.message });
   }
 };
