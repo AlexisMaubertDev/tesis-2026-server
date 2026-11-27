@@ -56,6 +56,7 @@ const Auditoria = sequelize.define(
         "AGREGAR_INCIDENCIA_ACARREO",
         "AGREGAR_INCIDENCIA_BARRERA",
         "AGREGAR_INCIDENCIA_TURNO_CAJA",
+        "AGREGAR_INCIDENCIA_COBRO",
         "BLOQUEAR_USUARIO",
         "DESBLOQUEAR_USUARIO",
         "OTRO",

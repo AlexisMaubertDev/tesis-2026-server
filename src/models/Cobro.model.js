@@ -49,6 +49,10 @@ const Cobro = sequelize.define(
       type: DataTypes.STRING(50),
       allowNull: true,
     },
+    incidencias: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
   },
   {
     tableName: "cobros",

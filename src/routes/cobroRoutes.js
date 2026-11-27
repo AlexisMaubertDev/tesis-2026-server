@@ -4,6 +4,7 @@ import { cajeroMiddleware } from "../middlewares/rolMiddleware.js";
 import { idempotencyMiddleware } from "../middlewares/idempotencyMiddleware.js";
 import {
   crearCobro,
+  agregarIncidenciaCobro,
   obtenerCobrosDeMiTurno,
   obtenerPreviewCobro,
   generarComprobanteCobro,
@@ -37,6 +38,14 @@ router.post(
   cajeroMiddleware,
   idempotencyMiddleware,
   crearCobro,
+);
+
+// Agregar una incidencia a un cobro (cajero o supervisor/sistemas).
+router.put(
+  "/:id/incidencias",
+  authMiddleware,
+  cajeroMiddleware,
+  agregarIncidenciaCobro,
 );
 
 export default router;

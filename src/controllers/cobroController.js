@@ -366,6 +366,60 @@ export const crearCobro = async (req, res) => {
   }
 };
 
+export const agregarIncidenciaCobro = async (req, res) => {
+  const { id } = req.params;
+  const { incidencias } = req.body;
+
+  // Un id no-UUID rompería el findByPk en Postgres (500): se corta antes.
+  if (!esUuidValido(id)) {
+    return res.status(404).json({ success: false, message: "Cobro no encontrado" });
+  }
+
+  if (typeof incidencias !== "string" || incidencias.trim() === "") {
+    return res.status(400).json({
+      success: false,
+      message: "La incidencia es obligatoria",
+    });
+  }
+
+  try {
+    const cobro = await Cobro.findByPk(id, {
+      include: [{ model: Acarreo, include: [{ model: Vehiculo, attributes: ["patente"] }] }],
+    });
+
+    if (!cobro) {
+      return res.status(404).json({ success: false, message: "Cobro no encontrado" });
+    }
+
+    const incidenciasPrevias = cobro.incidencias || "";
+    const nuevas = incidenciasPrevias
+      ? `${incidenciasPrevias}\n- ${incidencias.trim()}`
+      : `- ${incidencias.trim()}`;
+
+    await cobro.update({ incidencias: nuevas });
+
+    await registrarAuditoria({
+      usuario: req.user,
+      entidad: "COBRO",
+      idEntidad: cobro.id,
+      accion: "AGREGAR_INCIDENCIA_COBRO",
+      descripcion: `Se agregó una incidencia al cobro del vehículo ${cobro.Acarreo?.Vehiculo?.patente ?? "-"} por ${formatoImporte(cobro.total)}`,
+      antes: { incidencias: incidenciasPrevias || null },
+      despues: { incidencias: nuevas },
+      req,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: cobro,
+      message: "Incidencia agregada exitosamente",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: "Error en el servidor" });
+  }
+};
+
 /**
  * Cobros del turno de caja abierto del cajero (home del cajero).
  *
